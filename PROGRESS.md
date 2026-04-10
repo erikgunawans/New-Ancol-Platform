@@ -532,6 +532,25 @@ New-Ancol-Platform/                    (~295 files)
 - **All 120 tests passing** after all fixes
 - **Repo Separation**: Moved to standalone repo `github.com/erikgunawans/New-Ancol-Platform`. Removed from `new-shadow-ai-detector` repo, deleted stale branch, cleaned `.gitignore`
 
+### Session 12 — 2026-04-11
+
+**Scope:** Documentation polish — PROGRESS.md + CLAUDE.md audit and improvement
+
+- **PROGRESS.md overhaul**: updated current state date, added standalone repo URL, fixed session ordering (9→10→11), added session 11 entry, added 3 industry regulations to corpus table, updated infrastructure to 14 modules (disaster-recovery), updated frontend to 9 pages/17 API functions/8 nav items, added email-ingest + regulation-monitor to test commands and file structure, added utils.py and integrations/ to file structure and critical files
+- **CLAUDE.md audit** (`/claude-md-improver`): scored 72/100 (B), identified 7 issues
+  - Removed dead plan file reference (`.claude/plans/golden-marinating-sunbeam.md` no longer exists)
+  - Fixed config count: 21 → 31 settings
+  - Added 4 missing shared code entries (utils.py, integrations/, auth/middleware.py, rate_limiter.py)
+  - Added document-processor to test list (7 tests, CI-only due to `google-cloud-documentai` dependency)
+  - Added "run all tests" convenience loop + `npm run build` command
+  - Added Gotchas section with 9 non-obvious patterns
+  - Score improved to 93/100 (A)
+- **CLAUDE.md final polish** (93 → 100):
+  - Added Setup section (prerequisites, `pip install -e`, `npm install`)
+  - Added 2 operational gotchas (`npm install` required before build, `terraform init` before validate)
+  - Noted scorecard trend charts + batch auto-refresh in frontend description
+- **Shadow-AI-Detector cleanup verified**: 0 of 1,399 tracked files reference Ancol, stale branch pruned, `.gitignore` ancol entries removed
+
 ---
 
 ## Critical Files (read these first when resuming)
@@ -544,7 +563,7 @@ New-Ancol-Platform/                    (~295 files)
 | `packages/ancol-common/src/ancol_common/utils.py` | Shared utilities — date parsing, format detection, GCS helpers, constants |
 | `packages/ancol-common/src/ancol_common/db/models.py` | 15 ORM tables — the data model |
 | `packages/ancol-common/src/ancol_common/db/repository.py` | Document state machine (14 states) |
-| `packages/ancol-common/src/ancol_common/config.py` | 21 environment settings |
+| `packages/ancol-common/src/ancol_common/config.py` | 31 environment settings |
 | `services/legal-research-agent/src/legal_research_agent/retrieval/citation_validator.py` | Anti-hallucination Layer 3 — most critical safety code |
 | `services/comparison-agent/src/comparison_agent/analyzers/red_flags.py` | 5 red flag detectors — core compliance value |
 | `services/reporting-agent/src/reporting_agent/generators/scorecard.py` | Three-pillar scoring (30/35/35) |
