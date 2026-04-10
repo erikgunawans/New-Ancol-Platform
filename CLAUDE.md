@@ -4,7 +4,6 @@
 
 - **ALWAYS read `PROGRESS.md` at the start of every session** — it has the current state, what's done, what's next, and critical files to read first
 - **ALWAYS update `PROGRESS.md` after completing any task** — add a session entry with scope, files created/modified, tests passing, and next steps so the next session can resume seamlessly
-- Check the implementation plan at `.claude/plans/golden-marinating-sunbeam.md` for the full step-by-step breakdown
 
 ## Commands
 
@@ -22,6 +21,13 @@ PYTHONPATH=packages/ancol-common/src:services/api-gateway/src pytest services/ap
 PYTHONPATH=packages/ancol-common/src:services/batch-engine/src pytest services/batch-engine/tests/ -v
 PYTHONPATH=packages/ancol-common/src:services/email-ingest/src pytest services/email-ingest/tests/ -v
 PYTHONPATH=packages/ancol-common/src:services/regulation-monitor/src pytest services/regulation-monitor/tests/ -v
+# document-processor: requires google-cloud-documentai (CI only)
+# PYTHONPATH=packages/ancol-common/src:services/document-processor/src pytest services/document-processor/tests/ -v
+
+# Run all local tests (convenience)
+for svc in extraction-agent legal-research-agent comparison-agent reporting-agent api-gateway batch-engine email-ingest regulation-monitor; do
+  PYTHONPATH=packages/ancol-common/src:services/$svc/src python3 -m pytest services/$svc/tests/ -q
+done
 
 # Verify ORM models load (quick smoke test)
 PYTHONPATH=packages/ancol-common/src python3 -c "from ancol_common.db.models import Base; print(f'{len(Base.metadata.tables)} tables')"
@@ -31,6 +37,7 @@ python3 corpus/scripts/chunk_regulations.py --all
 
 # Frontend
 cd web && npm install && npm run dev
+cd web && npm run build  # verify production build
 
 # Terraform
 cd infra/environments/dev && terraform validate
@@ -43,8 +50,8 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 ## Key Files
 
 - **Design Spec:** `docs/superpowers/specs/2026-04-08-agentic-mom-compliance-design.md`
-- **Implementation Plan:** `.claude/plans/golden-marinating-sunbeam.md`
 - **Progress Tracker:** `PROGRESS.md` — session-by-session log with what's done and what's next
+- **Repository:** https://github.com/erikgunawans/New-Ancol-Platform
 
 ## Tech Stack
 
@@ -84,11 +91,14 @@ Orchestrated by Cloud Workflows (`infra/modules/workflows/workflow.yaml`) with H
 ## Shared Code
 
 All agents share `packages/ancol-common/` which contains:
-- `schemas/` — Pydantic models (the contract between agents). **mom.py is the critical schema file.**
+- `schemas/` — 9 Pydantic v2 schemas (the contract between agents). **mom.py is the critical schema file.**
 - `db/models.py` — 15 SQLAlchemy ORM models
-- `db/repository.py` — Document state machine (14 states)
-- `gemini/` — Client factory + Vertex AI Search grounding tool
-- `config.py` — 21 environment-based settings
+- `db/repository.py` — Document state machine (14 states) + batch job CRUD
+- `gemini/` — Client factory, Vertex AI Search grounding tool, token bucket rate limiter
+- `auth/` — IAP JWT verification, RBAC permission matrix, SSO auth middleware
+- `integrations/` — Board portal + ERP adapters (abstract base)
+- `utils.py` — Shared helpers: `parse_indonesian_date`, `detect_document_format`, `parse_gcs_uri`, `SYSTEM_USER_ID`
+- `config.py` — 31 environment-based settings
 
 ## Conventions
 
@@ -100,7 +110,7 @@ All agents share `packages/ancol-common/` which contains:
 
 ## Testing
 
-120 unit tests across 8 services. Each service tested individually:
+120 unit tests across 8 services (run locally). Each service tested individually:
 - extraction-agent: 9 tests (structural parser, endpoints)
 - legal-research-agent: 9 tests (citation validator, endpoints)
 - comparison-agent: 27 tests (5 red flag detectors, severity scoring)
@@ -109,7 +119,18 @@ All agents share `packages/ancol-common/` which contains:
 - batch-engine: 18 tests (rate limiter, status transitions, schemas, health)
 - email-ingest: 18 tests (filename detection, MoM type, date extraction, health)
 - regulation-monitor: 20 tests (sources, relevance filter, date parsing, endpoints)
+- document-processor: 7 tests (requires `google-cloud-documentai` — runs in CI only)
 
 ## Current State
 
-**ALL 5 PHASES COMPLETE.** ~295 files, 120 tests across 8 services. System is feature-complete. Check `PROGRESS.md` for full details.
+**ALL 5 PHASES COMPLETE.** ~295 files, 120 tests locally (127 total incl. CI-only). System is feature-complete. Check `PROGRESS.md` for full details.
+
+## Gotchas
+
+- **PYTHONPATH required for tests**: Each service has its own namespace. You must set `PYTHONPATH=packages/ancol-common/src:services/<svc>/src` before running pytest, or imports fail
+- **Enums use StrEnum** (Python 3.12+): `mom.py` and `batch.py` use `StrEnum`, not `str, Enum`
+- **Rate limiter releases lock before sleep**: The token bucket in `rate_limiter.py` deliberately releases the async lock before `asyncio.sleep()` to avoid serializing concurrent callers
+- **Retroactive scan uses bulk UPDATE**: `retroactive.py` must use `sqlalchemy.update()` for document status reset, not ORM attribute mutation (documents may be detached from session)
+- **GCS client is a singleton**: Use `get_gcs_client()` from `utils.py`, not `storage.Client()` directly
+- **Format detection**: Use `detect_document_format()` from `utils.py`, not inline `format_map` dicts
+- **System user UUID**: Use `SYSTEM_USER_ID` from `utils.py` (`a0000000-...`), not hardcoded strings
