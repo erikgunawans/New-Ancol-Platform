@@ -1,0 +1,189 @@
+main:
+  params: [event]
+  steps:
+    - init:
+        assign:
+          - document_id: ${event.data.document_id}
+          - project_id: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - region: "asia-southeast2"
+
+    # ── Stage 1: Extraction Agent ──
+    - call_extraction_agent:
+        call: http.post
+        args:
+          url: ${"https://extraction-agent-" + project_id + "." + region + ".run.app/extract"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+        result: extraction_result
+
+    - update_status_gate_1:
+        call: http.post
+        args:
+          url: ${"https://api-gateway-" + project_id + "." + region + ".run.app/api/internal/status"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            status: "hitl_gate_1"
+            extraction_id: ${extraction_result.body.extraction_id}
+
+    # ── HITL Gate 1: Wait for human approval ──
+    - wait_gate_1:
+        call: googleapis.pubsub.v1.projects.subscriptions.pull
+        args:
+          subscription: ${"projects/" + project_id + "/subscriptions/ancol-hitl-decided-pull"}
+          body:
+            maxMessages: 1
+            returnImmediately: false
+        result: gate_1_msg
+
+    - check_gate_1:
+        switch:
+          - condition: ${gate_1_msg.receivedMessages[0].message.attributes.decision == "rejected"}
+            raise:
+              code: 400
+              message: "Gate 1 rejected by reviewer"
+          - condition: true
+            next: call_legal_research_agent
+
+    # ── Stage 2: Legal Research Agent ──
+    - call_legal_research_agent:
+        call: http.post
+        args:
+          url: ${"https://legal-research-agent-" + project_id + "." + region + ".run.app/research"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            extraction_id: ${extraction_result.body.extraction_id}
+        result: research_result
+
+    - update_status_gate_2:
+        call: http.post
+        args:
+          url: ${"https://api-gateway-" + project_id + "." + region + ".run.app/api/internal/status"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            status: "hitl_gate_2"
+            regulatory_context_id: ${research_result.body.regulatory_context_id}
+
+    # ── HITL Gate 2: Wait for human approval ──
+    - wait_gate_2:
+        call: googleapis.pubsub.v1.projects.subscriptions.pull
+        args:
+          subscription: ${"projects/" + project_id + "/subscriptions/ancol-hitl-decided-pull"}
+          body:
+            maxMessages: 1
+            returnImmediately: false
+        result: gate_2_msg
+
+    - check_gate_2:
+        switch:
+          - condition: ${gate_2_msg.receivedMessages[0].message.attributes.decision == "rejected"}
+            raise:
+              code: 400
+              message: "Gate 2 rejected by reviewer"
+          - condition: true
+            next: call_comparison_agent
+
+    # ── Stage 3: Comparison & Reasoning Agent ──
+    - call_comparison_agent:
+        call: http.post
+        args:
+          url: ${"https://comparison-agent-" + project_id + "." + region + ".run.app/compare"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            extraction_id: ${extraction_result.body.extraction_id}
+            regulatory_context_id: ${research_result.body.regulatory_context_id}
+        result: comparison_result
+
+    - update_status_gate_3:
+        call: http.post
+        args:
+          url: ${"https://api-gateway-" + project_id + "." + region + ".run.app/api/internal/status"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            status: "hitl_gate_3"
+            findings_id: ${comparison_result.body.findings_id}
+
+    # ── HITL Gate 3: Wait for human approval ──
+    - wait_gate_3:
+        call: googleapis.pubsub.v1.projects.subscriptions.pull
+        args:
+          subscription: ${"projects/" + project_id + "/subscriptions/ancol-hitl-decided-pull"}
+          body:
+            maxMessages: 1
+            returnImmediately: false
+        result: gate_3_msg
+
+    - check_gate_3:
+        switch:
+          - condition: ${gate_3_msg.receivedMessages[0].message.attributes.decision == "rejected"}
+            raise:
+              code: 400
+              message: "Gate 3 rejected by reviewer"
+          - condition: true
+            next: call_reporting_agent
+
+    # ── Stage 4: Reporting Agent ──
+    - call_reporting_agent:
+        call: http.post
+        args:
+          url: ${"https://reporting-agent-" + project_id + "." + region + ".run.app/report"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            findings_id: ${comparison_result.body.findings_id}
+        result: report_result
+
+    - update_status_gate_4:
+        call: http.post
+        args:
+          url: ${"https://api-gateway-" + project_id + "." + region + ".run.app/api/internal/status"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            status: "hitl_gate_4"
+            report_id: ${report_result.body.report_id}
+
+    # ── HITL Gate 4: Wait for dual approval ──
+    - wait_gate_4:
+        call: googleapis.pubsub.v1.projects.subscriptions.pull
+        args:
+          subscription: ${"projects/" + project_id + "/subscriptions/ancol-hitl-decided-pull"}
+          body:
+            maxMessages: 1
+            returnImmediately: false
+        result: gate_4_msg
+
+    - check_gate_4:
+        switch:
+          - condition: ${gate_4_msg.receivedMessages[0].message.attributes.decision == "rejected"}
+            raise:
+              code: 400
+              message: "Gate 4 rejected by reviewer"
+          - condition: true
+            next: complete
+
+    # ── Complete ──
+    - complete:
+        call: http.post
+        args:
+          url: ${"https://api-gateway-" + project_id + "." + region + ".run.app/api/internal/status"}
+          auth:
+            type: OIDC
+          body:
+            document_id: ${document_id}
+            status: "complete"
+        result: final_status
+        next: end

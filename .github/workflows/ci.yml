@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check packages/ services/
+      - run: ruff format --check packages/ services/
+
+  lint-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          if [ -f web/package.json ]; then
+            cd web && npm ci && npm run lint
+          else
+            echo "Web project not yet initialized — skipping"
+          fi
+
+  test-python:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: ancol_test
+          POSTGRES_USER: ancol
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: ancol_test
+      DB_USER: ancol
+      DB_PASSWORD: test
+      ENVIRONMENT: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ancol-common
+        run: pip install -e "packages/ancol-common[test]"
+      - name: Install service packages
+        run: |
+          for svc in services/*/; do
+            if [ -f "$svc/pyproject.toml" ]; then
+              pip install -e "$svc[test]" 2>/dev/null || pip install -e "$svc" 2>/dev/null || true
+            fi
+          done
+      - name: Run tests
+        run: pytest --tb=short -q
+
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7"
+      - name: Validate all modules
+        run: |
+          for module in infra/modules/*/; do
+            echo "Validating $module..."
+            cd "$module"
+            terraform init -backend=false 2>/dev/null
+            terraform validate
+            cd -
+          done

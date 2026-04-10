@@ -1,0 +1,30 @@
+{
+  "files_processed": 4,
+  "total_chunks": 31,
+  "regulations": [
+    {
+      "regulation_id": "ADART-PJAA",
+      "title": "Anggaran Dasar PT Pembangunan Jaya Ancol Tbk",
+      "chunks": 9,
+      "source": "ADART-PJAA.md"
+    },
+    {
+      "regulation_id": "BOC-CHARTER-PJAA",
+      "title": "Piagam Dewan Komisaris PT Pembangunan Jaya Ancol Tbk",
+      "chunks": 8,
+      "source": "BOC-CHARTER-PJAA.md"
+    },
+    {
+      "regulation_id": "BOD-CHARTER-PJAA",
+      "title": "Piagam Direksi PT Pembangunan Jaya Ancol Tbk",
+      "chunks": 9,
+      "source": "BOD-CHARTER-PJAA.md"
+    },
+    {
+      "regulation_id": "RPT-POLICY-PJAA",
+      "title": "Kebijakan Transaksi Pihak Berelasi PT Pembangunan Jaya Ancol Tbk",
+      "chunks": 5,
+      "source": "RPT-POLICY-PJAA.md"
+    }
+  ]
+}

@@ -1,0 +1,520 @@
+# Ancol MoM Compliance System — Progress Tracker
+
+## Current State (as of 2026-04-10)
+
+**ALL 5 PHASES COMPLETE.** ~295 source files, 120 unit tests passing across 8 services.
+
+| Phase | Weeks | Status | Files | Tests |
+|-------|-------|--------|-------|-------|
+| **Phase 1: Foundation** | 1-3 | **COMPLETE** | ~152 | 0 |
+| **Phase 2: Core Agents** | 4-8 | **COMPLETE** | +60 | 64 |
+| **Phase 3: HITL + UI (MVP)** | 9-12 | **COMPLETE** | +25 | 0 (frontend) |
+| **Phase 4: Batch + Scale** | 13-16 | **COMPLETE** | +23 | 18 |
+| **Phase 5: Integration** | 17-20 | **COMPLETE** | +35 | 38 |
+
+**System is feature-complete.** Ready for deployment, internal pilot, and historical MoM processing.
+
+---
+
+## Key Documents
+
+| Document | Path | Purpose |
+|----------|------|---------|
+| Design Spec | `docs/superpowers/specs/2026-04-08-agentic-mom-compliance-design.md` | Full system design: architecture, agents, edge cases, grounding strategy |
+| Implementation Plan | `.claude/plans/golden-marinating-sunbeam.md` | 80+ numbered steps, 5 phases, critical path, risk mitigations |
+| This File | `PROGRESS.md` | Session-by-session log + resume guide |
+| Project CLAUDE.md | `CLAUDE.md` | Conventions, tech stack, architecture overview for Claude |
+
+---
+
+## Architecture Summary
+
+- **5 Layers:** Document Ingestion (Document AI) → Presentation (Next.js 15) → Orchestration (4 Gemini agents + Cloud Workflows + Pub/Sub) → Data (Cloud SQL + Vertex AI Search + Cloud Storage + BigQuery) → Security/Observability/DR
+- **4 Agents:** Extraction (Flash), Legal Research (Pro+RAG), Comparison (Pro), Reporting (Flash)
+- **4 HITL Gates:** Between each agent stage — human approval required before next agent runs
+- **4 User Roles:** Corp Secretary, Internal Auditor, Komisaris, Legal & Compliance
+- **Region:** asia-southeast2 (Jakarta) — data sovereignty requirement
+- **Tech:** Python 3.12 + FastAPI (agents/API), Next.js 15 + React 19 + Tailwind (frontend), Terraform (IaC), PostgreSQL 15
+
+---
+
+## Service Reference
+
+### How to run tests per service
+
+```bash
+# Each service must be tested individually due to namespace isolation
+PYTHONPATH=packages/ancol-common/src:services/extraction-agent/src python3 -m pytest services/extraction-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/legal-research-agent/src python3 -m pytest services/legal-research-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/comparison-agent/src python3 -m pytest services/comparison-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/reporting-agent/src python3 -m pytest services/reporting-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/api-gateway/src python3 -m pytest services/api-gateway/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/batch-engine/src python3 -m pytest services/batch-engine/tests/ -v
+```
+
+### Service inventory
+
+| Service | Path | Model | Port | Tests | Key Files |
+|---------|------|-------|------|-------|-----------|
+| **Document Processor** | `services/document-processor/` | — (Document AI) | 8080 | 7 | `processor.py` (OCR pipeline), `main.py` (Pub/Sub handler) |
+| **Extraction Agent** | `services/extraction-agent/` | Gemini 2.5 Flash | 8080 | 9 | `agent.py`, `parsers/structural.py`, `prompts/system.py` |
+| **Legal Research Agent** | `services/legal-research-agent/` | Gemini 2.5 Pro + RAG | 8080 | 9 | `agent.py`, `retrieval/citation_validator.py` (critical safety code) |
+| **Comparison Agent** | `services/comparison-agent/` | Gemini 2.5 Pro | 8080 | 27 | `analyzers/red_flags.py` (5 detectors), `analyzers/severity.py` |
+| **Reporting Agent** | `services/reporting-agent/` | Gemini 2.5 Flash | 8080 | 16 | `generators/scorecard.py`, `generators/pdf.py`, `generators/excel.py` |
+| **Batch Engine** | `services/batch-engine/` | — | 8080 | 18 | `engine.py` (orchestrator), `main.py` (trigger/pause/resume) |
+| **Email Ingest** | `services/email-ingest/` | — | 8080 | 18 | `scanner.py` (Gmail scanner), `main.py` (Cloud Scheduler trigger) |
+| **Regulation Monitor** | `services/regulation-monitor/` | — | 8080 | 20 | `checker.py` (5-source scraper), `sources.py` (OJK/IDX/industry) |
+| **API Gateway** | `services/api-gateway/` | — | 8080 | 3 | `routers/` (10 routers, 28 endpoints) |
+| **Frontend** | `web/` | — | 3000 | 0 | 9 pages, 3 shared components, API client |
+
+### API Gateway endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/documents/upload` | POST | Upload MoM (multipart → GCS → Pub/Sub) |
+| `/api/documents` | GET | List documents (status filter, pagination) |
+| `/api/documents/{id}` | GET | Get single document |
+| `/api/hitl/queue` | GET | HITL review queue (gate filter) |
+| `/api/hitl/review/{id}` | GET | AI output for review per gate |
+| `/api/hitl/decide/{id}` | POST | Submit HITL decision (approve/reject/modify) |
+| `/api/reports` | GET | List compliance reports |
+| `/api/reports/{id}` | GET | Report detail with scorecard |
+| `/api/reports/{id}/download/{fmt}` | GET | Signed URL for PDF/Excel |
+| `/api/users` | GET | List users (role filter) |
+| `/api/users/{id}` | GET | Get user |
+| `/api/audit` | GET | Audit trail entries |
+| `/api/dashboard/stats` | GET | Dashboard aggregate statistics |
+| `/api/dashboard/stats/trends` | GET | Monthly composite score trends |
+| `/api/batch` | POST | Create a new batch job |
+| `/api/batch` | GET | List batch jobs (status filter) |
+| `/api/batch/{id}` | GET | Batch job detail with item breakdown |
+| `/api/batch/{id}/pause` | POST | Pause a running batch job |
+| `/api/batch/{id}/resume` | POST | Resume a paused batch job |
+| `/api/analytics/trends` | GET | Monthly compliance score trends (all pillars) |
+| `/api/analytics/violations` | GET | Violation type heatmap |
+| `/api/analytics/coverage` | GET | Document processing coverage stats |
+| `/api/analytics/hitl-performance` | GET | HITL gate decision metrics |
+
+### Agent pipeline flow
+
+```
+Upload → Document Processor (Document AI OCR)
+  → Pub/Sub: mom-ocr-complete
+    → Extraction Agent (Gemini Flash → StructuredMoM)
+      → DB: Extraction record → Status: hitl_gate_1
+        → HITL Gate 1 (Corp Sec approves extraction)
+          → Pub/Sub: hitl-gate_1-decided
+            → Legal Research Agent (Gemini Pro + Vertex AI Search RAG → RegulatoryMapping)
+              → Citation Validator (3-layer anti-hallucination check)
+                → DB: RegulatoryContext → Status: hitl_gate_2
+                  → HITL Gate 2 (Legal approves mapping)
+                    → Comparison Agent (Gemini Pro chain-of-thought → Findings + Red Flags)
+                      → Rule-based red flag scan (quorum, RPT, COI, circular, signatures)
+                        → DB: ComplianceFindingRecord → Status: hitl_gate_3
+                          → HITL Gate 3 (Auditor approves findings)
+                            → Reporting Agent (Gemini Flash → Scorecard + PDF + Excel)
+                              → DB: Report → GCS: PDF + Excel → Status: hitl_gate_4
+                                → HITL Gate 4 (Dual approval: Audit Head + Corp Sec)
+                                  → Status: complete
+```
+
+### Document state machine (14 states)
+
+```
+pending → processing_ocr → ocr_complete → extracting → hitl_gate_1
+  → researching → hitl_gate_2 → comparing → hitl_gate_3
+    → reporting → hitl_gate_4 → complete
+Any processing state → failed (retry: failed → pending)
+Any HITL gate → rejected (terminal)
+```
+
+Defined in: `packages/ancol-common/src/ancol_common/db/repository.py`
+
+---
+
+## Database
+
+- **15 ORM tables** defined in `packages/ancol-common/src/ancol_common/db/models.py`
+- **10 enum types**: user_role, mom_type, document_format, document_status, hitl_gate, hitl_decision, notification_channel, notification_status, batch_status, batch_item_status
+- **22 indexes** for query performance
+- **Migration 001** at `db/alembic/versions/001_initial_schema.py` — creates everything
+- **Alembic config** at `alembic.ini` with async runner in `db/alembic/env.py`
+
+### Seed data (`db/seed/`)
+
+| File | Records | Content |
+|------|---------|---------|
+| `001_users.sql` | 9 | Users across 5 roles with manager chains |
+| `002_mom_templates.sql` | 3 | Regular, circular, extraordinary MoM templates with quorum/signature rules |
+| `003_related_party_entities.sql` | 13 | PT Pembangunan Jaya group entities for RPT detection |
+| `004_regulation_index.sql` | 14 | All regulations in the compliance corpus |
+| `005_conflict_precedences.sql` | 5 | Regulatory precedence rules |
+
+Run with: `db/seed/run_seeds.sh`
+
+---
+
+## Regulatory Corpus
+
+- **9 regulations** in structured Markdown format (4 internal + 5 external)
+- **69 chunks** generated by `corpus/scripts/chunk_regulations.py --all`
+- JSONL output in `corpus/{internal,external}/chunks/`
+- Upload to Vertex AI Search via `corpus/scripts/upload_to_vertex_search.py --all`
+- Quality test: `corpus/scripts/test_retrieval_quality.py --local-only -v` (20 queries, R=0.80)
+
+### Regulations in corpus
+
+| ID | Title | Type | Domain |
+|----|-------|------|--------|
+| UU-PT-40-2007 | UU Perseroan Terbatas | external | corporate_governance |
+| POJK-33-2014 | Direksi dan Komisaris Emiten | external | board_governance |
+| POJK-42-2020 | Transaksi Afiliasi dan Benturan Kepentingan | external | related_party_transactions |
+| POJK-21-2015 | Tata Kelola Perusahaan Terbuka | external | corporate_governance |
+| IDX-I-A | Pencatatan Saham BEI | external | listing_rules |
+| ADART-PJAA | Anggaran Dasar PJAA | internal | corporate_charter |
+| BOD-CHARTER-PJAA | Piagam Direksi | internal | board_charter |
+| BOC-CHARTER-PJAA | Piagam Dewan Komisaris | internal | board_charter |
+| RPT-POLICY-PJAA | Kebijakan Transaksi Pihak Berelasi | internal | related_party_transactions |
+
+---
+
+## Infrastructure (Terraform)
+
+13 modules in `infra/modules/`, composed in `infra/environments/dev/main.tf`:
+
+| Module | Key Resources |
+|--------|---------------|
+| project-factory | GCP project, 22 API enables |
+| networking | VPC, subnet (asia-southeast2), Cloud NAT, VPC connector |
+| security | KMS keyring, 7 service accounts, Secret Manager, Cloud Armor WAF |
+| database | Cloud SQL PostgreSQL 15, private IP, HA-ready |
+| storage | 3 CMEK-encrypted buckets (raw/processed/reports) with 10yr lifecycle |
+| pubsub | 8 topics + 8 DLQ topics + subscriptions |
+| cloud-run | Reusable module for all services |
+| document-ai | Form Parser processor + Eventarc trigger |
+| vertex-ai-search | Regulatory corpus datastore + search engine |
+| bigquery | Audit dataset, compliance_scores, log sink |
+| monitoring | Alert policies (agent errors, DB CPU, DLQ) |
+| auth | IAP brand + OAuth client |
+| workflows | Full 4-stage orchestrator YAML with HITL wait gates |
+
+---
+
+## Frontend (Next.js 15)
+
+All source in `web/src/`. Key files:
+
+| File | Purpose |
+|------|---------|
+| `lib/api.ts` | API client — 10 functions matching all API Gateway endpoints |
+| `lib/auth.ts` | RBAC route-level permission matrix per role |
+| `lib/utils.ts` | Score colors/grades/labels (Bahasa Indonesia), severity colors |
+| `types/index.ts` | 10 TypeScript interfaces mirroring Python Pydantic schemas |
+| `components/shared/sidebar.tsx` | 7-item nav with active state |
+| `components/shared/header.tsx` | Top bar + notification center |
+
+### 8 pages
+
+| Route | Role | Features |
+|-------|------|----------|
+| `/scorecard` | Komisaris | Stat cards, score pills (A-F), status distribution |
+| `/upload` | Corp Secretary | Drag-drop, multi-file, mom type, date picker |
+| `/documents` | All | Status-filtered table, OCR confidence |
+| `/review` | Auditor/Legal | Gate-filtered queue cards |
+| `/review/[id]` | Auditor/Legal | Scorecard, red flags, AI output, approve/reject |
+| `/reports` | All | Score cards, PDF/Excel download |
+| `/regulations` | Legal | External + internal regulation cards |
+| `/audit-trail` | Auditor | Timestamped action/actor/resource table |
+
+---
+
+## Completed — Phase 4: Batch + Scale + Analytics
+
+| Step | Task | Status |
+|------|------|--------|
+| 13.1 | Batch tables migration | **DONE** (existed in migration 001) |
+| 13.2 | Batch job API endpoints (create, list, get, pause, resume) | **DONE** |
+| 13.3 | Batch processing engine (parallel 10-50 docs, rate limiting, retry, resumable) | **DONE** |
+| 13.4 | Gemini API token bucket rate limiter | **DONE** |
+| 13.5 | Historical template versions in registry | Deferred to Phase 5 |
+| 13.6 | Retroactive impact scanning (corpus update triggers re-audit) | Deferred to Phase 5 |
+| 13.7 | Batch UI page (progress dashboard with auto-refresh) | **DONE** |
+| 13.8 | BigQuery analytics views (trends, violations, coverage) | **DONE** |
+| 13.9 | Trend charts on Komisaris dashboard | **DONE** |
+| 13.10 | Monitoring alerts (HITL SLA, batch failure, corpus staleness, Gemini quota) | **DONE** |
+| 13.11 | Process 500+ historical MoMs | Operational — requires deployed system |
+| 13.12 | Analytics API (trends, violations, coverage, HITL performance) | **DONE** |
+
+## Completed — Phase 5: Integration
+
+| Step | Task | Status |
+|------|------|--------|
+| 17.1 | Email auto-ingest service (Gmail API + Pub/Sub + Cloud Scheduler) | **DONE** |
+| 17.2 | Board portal integration adapter | **DONE** |
+| 17.3 | ERP connection adapter (RPT cross-check) | **DONE** |
+| 17.4 | OJK/IDX/industry regulation auto-monitor (5 sources, keyword filter) | **DONE** |
+| 17.5 | Industry regulation expansion (+3 regulations: tourism, environment, land) | **DONE** |
+| 17.6 | SSO auth middleware (IAP → DB user resolver) | **DONE** |
+| 17.7 | DR infrastructure (cross-region replica, GCS replication, RPO 1hr/RTO 4hr) | **DONE** |
+| 17.8 | Historical template versioning (version timeline, date-based auto-resolve) | **DONE** |
+| 17.9 | Retroactive impact scanning (scan + re-process affected MoMs) | **DONE** |
+
+## Post-Launch Operations
+
+| Task | Priority |
+|------|----------|
+| Deploy to GCP dev environment | HIGH |
+| Run terraform init + apply | HIGH |
+| Process 500+ historical MoMs via batch engine | HIGH |
+| Internal pilot with 5 real BoD MoMs | HIGH |
+| Configure Gmail OAuth for email ingest | MEDIUM |
+| Connect board portal + ERP APIs (when available) | MEDIUM |
+| Annual DR drill (RPO/RTO validation) | LOW |
+| Cloud Scheduler cron setup (email scan, reg monitor) | MEDIUM |
+
+---
+
+## File Structure
+
+```
+New-Ancol-Platform/                    (~237 files)
+├── .github/workflows/
+│   ├── ci.yml                         Lint (ruff) + test (pytest) + TF validate
+│   └── deploy-agents.yml             Per-service Cloud Run deploy on merge
+├── infra/                             Terraform (44 files)
+│   ├── environments/dev/              Dev composition (main.tf, variables, outputs, terraform.tfvars)
+│   └── modules/                       13 modules (project-factory, networking, security, database,
+│                                      storage, pubsub, cloud-run, document-ai, vertex-ai-search,
+│                                      bigquery, monitoring, auth, workflows)
+├── packages/ancol-common/             Shared Python package (26 files)
+│   ├── pyproject.toml                 Dependencies: pydantic, sqlalchemy, asyncpg, google-genai, etc.
+│   └── src/ancol_common/
+│       ├── schemas/                   8 Pydantic v2 schemas (mom.py is the critical contract)
+│       ├── db/                        connection.py, models.py (15 tables), repository.py (state machine)
+│       ├── gemini/                    client.py (Vertex AI factory), grounding.py (RAG tool)
+│       ├── pubsub/                    publisher.py, subscriber.py
+│       ├── auth/                      iap.py (JWT verify), rbac.py (permission matrix)
+│       ├── audit/                     logger.py (PostgreSQL + BigQuery dual-write)
+│       ├── notifications/             email.py (SendGrid), in_app.py
+│       └── config.py                  21 environment-based settings
+├── services/
+│   ├── document-processor/            IMPLEMENTED — Document AI OCR pipeline
+│   │   ├── src/document_processor/    main.py, processor.py
+│   │   ├── tests/                     test_main.py (4 tests), test_processor.py (3 tests)
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   ├── extraction-agent/              IMPLEMENTED — Gemini Flash structured extraction
+│   │   ├── src/extraction_agent/      agent.py, main.py, prompts/ (system + few_shot), parsers/structural.py
+│   │   ├── tests/                     test_structural.py (6), test_main.py (3), fixtures/
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   ├── legal-research-agent/          IMPLEMENTED — Gemini Pro + Vertex AI Search RAG
+│   │   ├── src/legal_research_agent/  agent.py, main.py, prompts/system.py, retrieval/citation_validator.py
+│   │   ├── tests/                     test_citation_validator.py (6), test_main.py (3)
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   ├── comparison-agent/              IMPLEMENTED — Red flags + severity scoring
+│   │   ├── src/comparison_agent/      agent.py, main.py, prompts/system.py,
+│   │   │                              analyzers/red_flags.py (5 detectors), analyzers/severity.py
+│   │   ├── tests/                     test_red_flags.py (15), test_severity.py (12)
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   ├── reporting-agent/               IMPLEMENTED — Scorecard + PDF + Excel
+│   │   ├── src/reporting_agent/       agent.py, main.py, prompts/system.py,
+│   │   │                              generators/scorecard.py, generators/pdf.py, generators/excel.py
+│   │   ├── tests/                     test_scorecard.py (11), test_pdf.py (5)
+│   │   ├── Dockerfile                 (includes WeasyPrint deps: pango, cairo, noto fonts)
+│   │   └── pyproject.toml
+│   ├── batch-engine/                  IMPLEMENTED — Batch processing engine
+│   │   ├── src/batch_engine/          main.py (trigger/pause/resume), engine.py (async orchestrator)
+│   │   ├── tests/                     test_main.py (1), test_engine.py (17)
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   └── api-gateway/                   IMPLEMENTED — Central REST API (21 endpoints)
+│       ├── src/api_gateway/           main.py, routers/ (documents, hitl, reports, users, audit, dashboard, batch, analytics)
+│       ├── tests/                     test_main.py (3)
+│       ├── Dockerfile
+│       └── pyproject.toml
+├── db/
+│   ├── alembic/
+│   │   ├── env.py                     Async migration runner (SQLAlchemy 2.0 AsyncEngine)
+│   │   ├── script.py.mako
+│   │   └── versions/
+│   │       └── 001_initial_schema.py  15 tables, 10 enums, 22 indexes, all FK constraints
+│   └── seed/
+│       ├── 001_users.sql              9 users across 5 roles
+│       ├── 002_mom_templates.sql      3 MoM templates (regular/circular/extraordinary)
+│       ├── 003_related_party_entities.sql  13 RPT entities (PT Pembangunan Jaya group)
+│       ├── 004_regulation_index.sql   14 regulations
+│       ├── 005_conflict_precedences.sql  5 precedence rules
+│       └── run_seeds.sh
+├── corpus/
+│   ├── internal/                      4 regulation .md files + chunks/ (4 JSONL + manifest)
+│   ├── external/                      5 regulation .md files + chunks/ (5 JSONL + manifest)
+│   └── scripts/
+│       ├── chunk_regulations.py       Article-level chunker → JSONL
+│       ├── upload_to_vertex_search.py Vertex AI Search uploader (upsert, dry-run)
+│       └── test_retrieval_quality.py  20 queries, P/R measurement
+├── web/                               Next.js 15 frontend
+│   ├── package.json                   Next.js 15, React 19, Tailwind
+│   ├── tsconfig.json, tailwind.config.ts, next.config.ts, postcss.config.mjs
+│   ├── Dockerfile                     Multi-stage Node 22 standalone build
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx, page.tsx, globals.css
+│       │   └── (dashboard)/           layout.tsx + 8 page routes
+│       │       ├── scorecard/         Komisaris dashboard
+│       │       ├── upload/            Corp Sec file upload
+│       │       ├── documents/         Document list
+│       │       ├── review/            HITL queue + [id] detail
+│       │       ├── reports/           Report archive
+│       │       ├── regulations/       Corpus explorer
+│       │       └── audit-trail/       Audit viewer
+│       ├── components/shared/         sidebar.tsx, header.tsx, notification-center.tsx
+│       ├── lib/                       api.ts, auth.ts, utils.ts
+│       └── types/                     index.ts (10 TS interfaces)
+├── scripts/setup-local.sh
+├── docs/superpowers/specs/            Design spec
+├── alembic.ini                        Root Alembic config
+├── pyproject.toml                     Root workspace: ruff, pytest, Python 3.12
+├── .python-version                    3.12
+├── .gitignore
+└── README.md
+```
+
+---
+
+## Session Log
+
+### Session 1 — 2026-04-08
+
+**Scope:** Brainstorming + design spec + implementation plan
+
+- Brainstormed all requirements: MoM formats, regulatory corpus, user roles, scale, GCP greenfield, language
+- Chose Multi-Agent + HITL Gates architecture (Approach C)
+- Self-audited and found 10 gaps (Document AI layer, event bus, auth, audit trail, regulatory versioning, notifications, batch, templates, monitoring, DR) — all fixed in revised architecture
+- Wrote 309-line design spec
+- Created 80+ step implementation plan, chose Python 3.12 + FastAPI over Node.js
+
+### Session 2 — 2026-04-09
+
+**Scope:** Phase 1 Week 1 — Terraform infrastructure + ancol-common package
+
+- **112 files created**
+- 13 Terraform modules (65 resources): project-factory, networking, security, storage, database, pubsub, cloud-run, document-ai, vertex-ai-search, bigquery, monitoring, auth, workflows
+- ancol-common package (26 files): 8 Pydantic schemas, 15 ORM models, document state machine (14 states), Gemini client factory, Pub/Sub helpers, IAP auth, RBAC, audit logger, SendGrid notifications, 21 settings
+- CI/CD pipelines (2 files): lint + test + TF validate on PR, per-service Cloud Run deploy
+- Pulled forward steps 2.1-2.3, 2.8, 3.1, 3.8 from later weeks
+
+### Session 3 — 2026-04-09
+
+**Scope:** Phase 1 Week 2 — Alembic migrations, seed data, document-processor
+
+- **17 files created** (total: 129)
+- Alembic migration 001: 15 tables, 10 enum types, 22 indexes, UUID primary keys
+- 5 seed SQL files: 9 users, 3 MoM templates (with quorum/signature rules per UU PT), 13 RPT entities (PT Pembangunan Jaya group), 14 regulations, 5 conflict precedences
+- Document-processor service: FastAPI + Document AI OCR pipeline (download raw → Document AI Form Parser → extract text/tables/confidence → write JSON → update DB → publish Pub/Sub)
+
+### Session 4 — 2026-04-09
+
+**Scope:** Phase 1 Week 3 — Regulatory corpus + Vertex AI Search
+
+- **12 source + 11 generated files** (total: ~152)
+- Chunking script: article-level splitting from structured Markdown, JSONL output with metadata
+- 9 regulation source files (4 internal + 5 external) covering 69 total chunks
+- Upload script to Vertex AI Search (upsert, rate-limited, dry-run mode)
+- Retrieval quality test: 20 queries across 6 domains, local baseline R=0.80
+
+### Session 5 — 2026-04-09
+
+**Scope:** Phase 2 Weeks 4-5 — Extraction Agent + Legal Research Agent
+
+- **23 files created** (total: ~175), 12 tests
+- Extraction Agent: Gemini Flash, structural parser (quorum/signature/section validation), Bahasa Indonesia system prompt, few-shot examples, golden test fixture (sample MoM with RPT + performance data)
+- Legal Research Agent: Gemini Pro + Vertex AI Search RAG, citation validator (3-layer anti-hallucination: retrieval score ≥0.5, source ID verification, text content check — zero tolerance for unsourced citations)
+
+### Session 6 — 2026-04-09
+
+**Scope:** Phase 2 Weeks 6-7 — Comparison Agent + Reporting Agent
+
+- **24 files created** (total: ~199), 43 new tests (55 total)
+- Comparison Agent: hybrid rule-based + AI analysis, 5 red flag detectors (quorum, RPT entity scan, conflict of interest abstention check, circular resolution unanimity, signature completeness), CRITICAL/HIGH/MEDIUM/LOW severity scoring
+- Reporting Agent: three-pillar scorecard (30/35/35 weights), PDF generation (WeasyPrint A4 board-ready with score pills + severity colors), Excel export (openpyxl 3-sheet with auto-filter + color coding), executive summary in Bahasa Indonesia
+
+### Session 7 — 2026-04-09
+
+**Scope:** Phase 2 Week 8 — API Gateway
+
+- **13 files created** (total: ~212), 3 new tests (64 total)
+- API Gateway: FastAPI with 6 routers, 13 REST endpoints, CORS for Next.js frontend
+- Documents router: upload (multipart → GCS → Pub/Sub), list (status filter, pagination), get
+- HITL router: review queue, review detail (loads AI output per gate), submit decision (state transitions + Pub/Sub)
+- Reports, Users, Audit, Dashboard routers
+
+### Session 8 — 2026-04-09/10
+
+**Scope:** Phase 3 — Next.js 15 frontend (MVP UI)
+
+- **25 files created** (total: ~237)
+- Next.js 15 + React 19 + Tailwind + TypeScript with Ancol brand colors (#1a237e)
+- Shared layout: sidebar (7-item nav), header (notification center + user avatar)
+- API client: 10 functions matching all API Gateway endpoints
+- RBAC auth: route-level permission matrix per role, default route per role
+- 8 pages: scorecard dashboard, upload (drag-drop), documents (status table), HITL queue + detail (approve/reject), reports (PDF/Excel download), regulations (corpus explorer), audit trail
+
+### Session 10 — 2026-04-10
+
+**Scope:** Phase 5 — Integration (all 9 tasks)
+
+- **35 files created/modified** (total: ~295), 38 new tests (120 total across 8 services)
+- **Email Ingest Service** (`services/email-ingest/`): Gmail inbox scanner with MoM filename detection (5 regex patterns), meeting date extraction (ISO + Bahasa Indonesia), auto-upload to pipeline. 17 tests (scanner logic) + 1 health test
+- **Regulation Monitor Service** (`services/regulation-monitor/`): 5 source definitions (OJK, IDX, Kemenparekraf, KLHK, ATR/BPN), HTML scraper with keyword relevance filter, change detection against corpus, Pub/Sub notifications. 20 tests (sources, relevance, date parsing)
+- **Auth Middleware** (`ancol_common/auth/middleware.py`): IAP → DB user resolver, attaches user/role/email to request state, public path bypass
+- **Template Versioning Router** (`api_gateway/routers/templates.py`): list, resolve (date-based auto-select), version timeline per MoM type
+- **Retroactive Scanning Router** (`api_gateway/routers/retroactive.py`): impact assessment + scan-and-reprocess (creates batch job for affected MoMs)
+- **Integration Adapters** (`ancol_common/integrations/`): abstract base + board portal adapter (sync meetings, push reports) + ERP adapter (financial data, RPT cross-check)
+- **Industry Regulations** (+3 corpus files): PP 50/2011 (tourism), PP 22/2021 (environment), Permen ATR 16/2021 (land/HGB)
+- **DR Infrastructure** (`infra/modules/disaster-recovery/`): Cloud SQL cross-region replica (asia-southeast1), GCS replication (hourly transfer jobs), replica lag monitoring
+- **Config**: +6 settings (email ingest, board portal, ERP)
+
+### Session 9 — 2026-04-10
+
+**Scope:** Phase 4 — Batch Processing + Analytics + Monitoring
+
+- **23 files created/modified** (total: ~260), 18 new tests (82 total)
+- **Batch Engine Service** (`services/batch-engine/`): FastAPI service with async processing engine, configurable concurrency (10-50), exponential backoff retry, resumable checkpoints, Pub/Sub progress events
+- **Gemini Rate Limiter** (`ancol_common/gemini/rate_limiter.py`): Async token bucket per model tier (Flash 33 RPS / Pro 16 RPS)
+- **Batch Pydantic Schemas** (`ancol_common/schemas/batch.py`): 8 schemas (create, response, detail, item, progress event)
+- **Batch Repository** (`repository.py`): batch CRUD, state machine (queued→running→paused/completed/failed), item tracking with auto-complete
+- **Batch API Router** (`api_gateway/routers/batch.py`): 5 endpoints (create, list, get detail, pause, resume)
+- **Analytics API Router** (`api_gateway/routers/analytics.py`): 4 endpoints (score trends, violation heatmap, coverage stats, HITL performance)
+- **Dashboard Trends** (`dashboard.py`): extended with trend endpoint + batch job counters
+- **BigQuery Views** (Terraform): 3 materialized views (monthly trends, violation heatmap, coverage by year)
+- **Monitoring Alerts** (Terraform): 4 new alert policies (HITL SLA breach, batch failure rate, corpus staleness, Gemini quota)
+- **Frontend Batch Page** (`web/src/app/(dashboard)/batch/page.tsx`): Progress cards with bar, pause/resume, auto-refresh, Bahasa labels
+- **Scorecard Trends** (`scorecard/page.tsx`): 6-month composite score bar chart
+- **Updated**: sidebar (8 nav items), API client (7 new functions), types (batch + analytics), config (3 new settings)
+
+---
+
+## Critical Files (read these first when resuming)
+
+| File | Why Critical |
+|------|-------------|
+| `CLAUDE.md` | Project conventions for Claude — read first |
+| `PROGRESS.md` | This file — current state + resume guide |
+| `.claude/plans/golden-marinating-sunbeam.md` | Full implementation plan with all 80+ steps |
+| `packages/ancol-common/src/ancol_common/schemas/mom.py` | Shared MoM schema — contract between all 4 agents |
+| `packages/ancol-common/src/ancol_common/db/models.py` | 15 ORM tables — the data model |
+| `packages/ancol-common/src/ancol_common/db/repository.py` | Document state machine (14 states) |
+| `packages/ancol-common/src/ancol_common/config.py` | 21 environment settings |
+| `services/legal-research-agent/src/legal_research_agent/retrieval/citation_validator.py` | Anti-hallucination Layer 3 — most critical safety code |
+| `services/comparison-agent/src/comparison_agent/analyzers/red_flags.py` | 5 red flag detectors — core compliance value |
+| `services/reporting-agent/src/reporting_agent/generators/scorecard.py` | Three-pillar scoring (30/35/35) |
+| `services/api-gateway/src/api_gateway/routers/hitl.py` | HITL decision flow — gate transitions |
+| `infra/modules/workflows/workflow.yaml` | Cloud Workflows orchestrator — pipeline backbone |
+| `db/alembic/versions/001_initial_schema.py` | Full DB schema |
+| `web/src/lib/api.ts` | Frontend API client — all endpoint bindings |
+| `services/batch-engine/src/batch_engine/engine.py` | Batch processing orchestrator — concurrency, retry, progress |
+| `packages/ancol-common/src/ancol_common/gemini/rate_limiter.py` | Token bucket rate limiter for Gemini API |
+| `services/api-gateway/src/api_gateway/routers/analytics.py` | Analytics endpoints — trends, violations, coverage, HITL |

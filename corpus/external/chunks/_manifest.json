@@ -1,0 +1,36 @@
+{
+  "files_processed": 5,
+  "total_chunks": 38,
+  "regulations": [
+    {
+      "regulation_id": "IDX-I-A",
+      "title": "Peraturan Pencatatan BEI No. I-A tentang Pencatatan Saham dan Efek Bersifat Ekuitas",
+      "chunks": 5,
+      "source": "IDX-I-A.md"
+    },
+    {
+      "regulation_id": "POJK-21-2015",
+      "title": "POJK No. 21/POJK.04/2015 tentang Penerapan Pedoman Tata Kelola Perusahaan Terbuka",
+      "chunks": 6,
+      "source": "POJK-21-2015.md"
+    },
+    {
+      "regulation_id": "POJK-33-2014",
+      "title": "POJK No. 33/POJK.04/2014 tentang Direksi dan Dewan Komisaris Emiten atau Perusahaan Publik",
+      "chunks": 9,
+      "source": "POJK-33-2014.md"
+    },
+    {
+      "regulation_id": "POJK-42-2020",
+      "title": "POJK No. 42/POJK.04/2020 tentang Transaksi Afiliasi dan Transaksi Benturan Kepentingan",
+      "chunks": 7,
+      "source": "POJK-42-2020.md"
+    },
+    {
+      "regulation_id": "UU-PT-40-2007",
+      "title": "Undang-Undang No. 40 Tahun 2007 tentang Perseroan Terbatas",
+      "chunks": 11,
+      "source": "UU-PT-40-2007.md"
+    }
+  ]
+}

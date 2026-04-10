@@ -1,0 +1,51 @@
+{
+  "document_id": "test-golden-001",
+  "meeting_date": "2025-05-13",
+  "meeting_type": "regular",
+  "meeting_number": "DIR/RR/005/V/2025",
+  "location": "Ruang Rapat Direksi Lantai 8, Gedung Ecovention Ancol, Jakarta Utara",
+  "chairman": "Budi Karya Sumadi",
+  "secretary": "Ratna Sari",
+  "total_directors": 5,
+  "directors_present": 4,
+  "quorum_met": true,
+  "attendees": [
+    {"name": "Budi Karya Sumadi", "title": "Direktur Utama", "role": "chairman", "present": true},
+    {"name": "Siti Rahayu", "title": "Direktur Keuangan", "role": "member", "present": true},
+    {"name": "Agus Pramono", "title": "Direktur Operasional", "role": "member", "present": true},
+    {"name": "Dewi Lestari", "title": "Direktur Pengembangan Bisnis", "role": "member", "present": true},
+    {"name": "Hendro Susanto", "title": "Direktur SDM & Umum", "role": "member", "present": false}
+  ],
+  "agenda_items": [
+    "Pembahasan Laporan Keuangan Kuartal I Tahun 2025",
+    "Rencana Kerjasama Strategis dengan PT Jaya Real Property Tbk",
+    "Program Revitalisasi Wahana Dufan",
+    "Laporan Tindak Lanjut Rapat Direksi Nomor DIR/RR/004/IV/2025",
+    "Lain-lain"
+  ],
+  "resolutions": [
+    {"number": "1", "text": "Menerima dan menyetujui Laporan Keuangan Kuartal I Tahun 2025"},
+    {"number": "2", "text": "Menyetujui secara prinsip rencana kerjasama joint development dengan PT Jaya Real Property Tbk", "assignee": "Direktur Pengembangan Bisnis", "deadline": "2025-06-30"},
+    {"number": "3", "text": "Menerima laporan progress revitalisasi Dufan Phase 2", "assignee": "Direktur Operasional", "deadline": "2025-08-31"},
+    {"number": "4", "text": "Menerima laporan tindak lanjut keputusan rapat sebelumnya"}
+  ],
+  "performance_metrics": [
+    {"name": "Pendapatan konsolidasi", "value": 312.5, "unit": "Rp miliar", "period": "Q1 2025", "yoy_change": 15.3},
+    {"name": "Laba bersih", "value": 45.8, "unit": "Rp miliar", "period": "Q1 2025", "yoy_change": 22.1},
+    {"name": "Jumlah pengunjung", "value": 3.1, "unit": "juta orang", "period": "Q1 2025", "yoy_change": 10.0},
+    {"name": "EBITDA margin", "value": 38.2, "unit": "%", "period": "Q1 2025"},
+    {"name": "Rasio hutang terhadap ekuitas", "value": 0.45, "unit": "x", "period": "Q1 2025"}
+  ],
+  "cross_references": [
+    {"reference_text": "Pasal 13 Anggaran Dasar Perseroan", "reference_type": "regulation", "target_id": "ADART-PJAA"},
+    {"reference_text": "POJK No. 33/POJK.04/2014", "reference_type": "regulation", "target_id": "POJK-33-2014"},
+    {"reference_text": "POJK No. 42/POJK.04/2020", "reference_type": "regulation", "target_id": "POJK-42-2020"},
+    {"reference_text": "Rapat Direksi Nomor DIR/RR/004/IV/2025", "reference_type": "prior_mom", "target_id": "DIR/RR/004/IV/2025"}
+  ],
+  "rpt_flags": [
+    "PT Jaya Real Property Tbk is an affiliate via PT Pembangunan Jaya (controlling shareholder)",
+    "Transaction value Rp 500 miliar requires fairness opinion, commissioner approval, and public disclosure per POJK 42/2020"
+  ],
+  "signers": ["Budi Karya Sumadi", "Ratna Sari"],
+  "signatures_complete": true
+}
