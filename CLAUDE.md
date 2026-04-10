@@ -5,6 +5,14 @@
 - **ALWAYS read `PROGRESS.md` at the start of every session** — it has the current state, what's done, what's next, and critical files to read first
 - **ALWAYS update `PROGRESS.md` after completing any task** — add a session entry with scope, files created/modified, tests passing, and next steps so the next session can resume seamlessly
 
+## Setup
+
+```bash
+# Prerequisites: Python 3.12, Node 22, ruff, Terraform
+pip install -e packages/ancol-common        # install shared package locally
+cd web && npm install && cd ..              # install frontend deps
+```
+
 ## Commands
 
 ```bash
@@ -84,7 +92,7 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 
 **API + Frontend:**
 9. **API Gateway** (FastAPI, 28 REST endpoints) — `services/api-gateway/`
-10. **Frontend** (Next.js 15, React 19, Tailwind) — `web/`
+10. **Frontend** (Next.js 15, React 19, Tailwind) — `web/` — scorecard has 6-month trend charts, batch page has auto-refresh progress bars
 
 Orchestrated by Cloud Workflows (`infra/modules/workflows/workflow.yaml`) with HITL gates between each stage.
 
@@ -134,3 +142,5 @@ All agents share `packages/ancol-common/` which contains:
 - **GCS client is a singleton**: Use `get_gcs_client()` from `utils.py`, not `storage.Client()` directly
 - **Format detection**: Use `detect_document_format()` from `utils.py`, not inline `format_map` dicts
 - **System user UUID**: Use `SYSTEM_USER_ID` from `utils.py` (`a0000000-...`), not hardcoded strings
+- **Frontend needs `npm install` first**: `web/node_modules/` is gitignored. Run `cd web && npm install` before `npm run dev` or `npm run build`
+- **Terraform needs `init` before `validate`**: `terraform validate` fails without `terraform init` first (downloads provider plugins). Init requires a GCP backend config or `-backend=false` for local-only validation
