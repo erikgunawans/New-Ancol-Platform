@@ -162,6 +162,53 @@ async def _dispatch_tool(
 
         return await handle_get_dashboard(params, api, user)
 
+    # -- Contract tools --
+
+    if tool_name == "upload_contract":
+        from gemini_agent.tools.contracts import handle_upload_contract
+
+        return await handle_upload_contract(params, api, user)
+
+    if tool_name == "check_contract_status":
+        from gemini_agent.tools.contracts import handle_check_contract_status
+
+        return await handle_check_contract_status(params, api, user)
+
+    if tool_name == "get_contract_portfolio":
+        from gemini_agent.tools.contracts import handle_get_contract_portfolio
+
+        return await handle_get_contract_portfolio(params, api, user)
+
+    if tool_name == "get_contract_risk":
+        from gemini_agent.tools.contracts import handle_check_contract_status
+
+        # Risk endpoint returns risk data; reuse status handler with risk API
+        params["contract_id"] = params.get("contract_id", "")
+        data = await api.get_contract_risk(params["contract_id"])
+        from gemini_agent.formatting import format_contract_risk
+
+        return format_contract_risk(data)
+
+    if tool_name == "list_obligations":
+        from gemini_agent.tools.obligations import handle_list_obligations
+
+        return await handle_list_obligations(params, api, user)
+
+    if tool_name == "fulfill_obligation":
+        from gemini_agent.tools.obligations import handle_fulfill_obligation
+
+        return await handle_fulfill_obligation(params, api, user)
+
+    if tool_name == "generate_draft":
+        from gemini_agent.tools.drafting import handle_generate_draft
+
+        return await handle_generate_draft(params, api, user)
+
+    if tool_name == "ask_contract_question":
+        from gemini_agent.tools.contract_qa import handle_ask_contract_question
+
+        return await handle_ask_contract_question(params, api, user)
+
     raise ValueError(f"Unknown tool: {tool_name}")
 
 

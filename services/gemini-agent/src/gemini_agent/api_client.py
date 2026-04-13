@@ -221,3 +221,130 @@ class ApiClient:
         return await self._request(
             "GET", "/api/dashboard/stats/trends", params={"months": months}
         )
+
+    # -- Contract endpoints --
+
+    async def upload_contract(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        title: str,
+        contract_type: str = "vendor",
+        contract_number: str | None = None,
+        uploaded_by: str = "a0000000-0000-0000-0000-000000000001",
+    ) -> dict:
+        """POST /api/contracts — multipart file upload."""
+        data: dict[str, Any] = {
+            "title": title,
+            "contract_type": contract_type,
+            "uploaded_by": uploaded_by,
+        }
+        if contract_number:
+            data["contract_number"] = contract_number
+
+        files = {"file": (filename, file_bytes, "application/octet-stream")}
+        return await self._request(
+            "POST", "/api/contracts", data=data, files=files, timeout=60.0
+        )
+
+    async def get_contract(self, contract_id: str) -> dict:
+        """GET /api/contracts/{id}."""
+        return await self._request("GET", f"/api/contracts/{contract_id}")
+
+    async def list_contracts(
+        self,
+        status: str | None = None,
+        contract_type: str | None = None,
+        limit: int = 50,
+    ) -> dict:
+        """GET /api/contracts — list with optional filters."""
+        params: dict[str, Any] = {"limit": limit}
+        if status:
+            params["status"] = status
+        if contract_type:
+            params["contract_type"] = contract_type
+        return await self._request("GET", "/api/contracts", params=params)
+
+    async def transition_contract_status(
+        self, contract_id: str, new_status: str
+    ) -> dict:
+        """POST /api/contracts/{id}/status."""
+        return await self._request(
+            "POST",
+            f"/api/contracts/{contract_id}/status",
+            json={"new_status": new_status},
+        )
+
+    async def get_contract_clauses(self, contract_id: str) -> dict:
+        """GET /api/contracts/{id}/clauses."""
+        return await self._request("GET", f"/api/contracts/{contract_id}/clauses")
+
+    async def get_contract_risk(self, contract_id: str) -> dict:
+        """GET /api/contracts/{id}/risk."""
+        return await self._request("GET", f"/api/contracts/{contract_id}/risk")
+
+    # -- Obligation endpoints --
+
+    async def list_obligations(
+        self,
+        contract_id: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> dict:
+        """GET /api/obligations — list with optional filters."""
+        params: dict[str, Any] = {"limit": limit}
+        if contract_id:
+            params["contract_id"] = contract_id
+        if status:
+            params["status"] = status
+        return await self._request("GET", "/api/obligations", params=params)
+
+    async def get_upcoming_obligations(self, days: int = 30) -> dict:
+        """GET /api/obligations/upcoming."""
+        return await self._request(
+            "GET", "/api/obligations/upcoming", params={"days": days}
+        )
+
+    async def fulfill_obligation(
+        self,
+        obligation_id: str,
+        fulfilled_by: str,
+        evidence_gcs_uri: str | None = None,
+    ) -> dict:
+        """POST /api/obligations/{id}/fulfill."""
+        body: dict[str, Any] = {"fulfilled_by": fulfilled_by}
+        if evidence_gcs_uri:
+            body["evidence_gcs_uri"] = evidence_gcs_uri
+        return await self._request(
+            "POST", f"/api/obligations/{obligation_id}/fulfill", json=body
+        )
+
+    # -- Drafting endpoints --
+
+    async def get_draft_templates(
+        self, contract_type: str | None = None
+    ) -> dict:
+        """GET /api/drafting/templates."""
+        params: dict[str, Any] = {}
+        if contract_type:
+            params["contract_type"] = contract_type
+        return await self._request("GET", "/api/drafting/templates", params=params)
+
+    async def generate_draft(self, body: dict) -> dict:
+        """POST /api/drafting/generate."""
+        return await self._request("POST", "/api/drafting/generate", json=body)
+
+    async def get_clause_library(
+        self,
+        contract_type: str | None = None,
+        category: str | None = None,
+    ) -> dict:
+        """GET /api/drafting/clause-library."""
+        params: dict[str, Any] = {}
+        if contract_type:
+            params["contract_type"] = contract_type
+        if category:
+            params["category"] = category
+        return await self._request(
+            "GET", "/api/drafting/clause-library", params=params
+        )
