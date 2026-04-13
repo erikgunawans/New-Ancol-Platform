@@ -53,3 +53,6 @@ credentials.json
 # Logs
 *.log
 excalidraw.log
+
+# Exported PRD/questionnaire summaries
+pjaa-prd-*.md
