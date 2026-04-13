@@ -1,8 +1,8 @@
 # Ancol MoM Compliance System — Progress Tracker
 
-## Current State (as of 2026-04-11)
+## Current State (as of 2026-04-12)
 
-**ALL 5 PHASES COMPLETE + CODE REVIEWED.** ~295 source files, 120 unit tests passing across 8 services. Code reviewed, 2 bugs fixed, linted, frontend builds clean.
+**ALL 5 PHASES + GEMINI AGENT COMPLETE.** ~330 source files, 149 unit tests passing across 9 services. Gemini Enterprise Agent Builder integration with hybrid RAG (Vertex AI Search + Spanner Graph + SQL). 11 Cloud Run services, Cloud Scheduler, Spanner Graph, and DR.
 
 **Repository:** https://github.com/erikgunawans/New-Ancol-Platform (standalone repo)
 
@@ -14,7 +14,7 @@
 | **Phase 4: Batch + Scale** | 13-16 | **COMPLETE** | +23 | 18 |
 | **Phase 5: Integration** | 17-20 | **COMPLETE** | +35 | 38 |
 
-**System is feature-complete.** Code reviewed, linted, and pushed to its own repo. Ready for GCP deployment, internal pilot, and historical MoM processing.
+**System is deployment-ready with Gemini Enterprise as primary interface.** Users interact via Gemini chat (upload MoMs, review HITL gates, view reports). Hybrid RAG with Spanner Graph for regulation relationships. Next.js frontend retained as analytics companion.
 
 ---
 
@@ -66,7 +66,7 @@ PYTHONPATH=packages/ancol-common/src:services/regulation-monitor/src python3 -m 
 | **Comparison Agent** | `services/comparison-agent/` | Gemini 2.5 Pro | 8080 | 27 | `analyzers/red_flags.py` (5 detectors), `analyzers/severity.py` |
 | **Reporting Agent** | `services/reporting-agent/` | Gemini 2.5 Flash | 8080 | 16 | `generators/scorecard.py`, `generators/pdf.py`, `generators/excel.py` |
 | **Batch Engine** | `services/batch-engine/` | — | 8080 | 18 | `engine.py` (orchestrator), `main.py` (trigger/pause/resume) |
-| **Email Ingest** | `services/email-ingest/` | — | 8080 | 18 | `scanner.py` (Gmail scanner), `main.py` (Cloud Scheduler trigger) |
+| **Email Ingest** | `services/email-ingest/` | — | 8080 | 24 | `scanner.py` (Gmail scanner), `main.py` (Cloud Scheduler trigger) |
 | **Regulation Monitor** | `services/regulation-monitor/` | — | 8080 | 20 | `checker.py` (5-source scraper), `sources.py` (OJK/IDX/industry) |
 | **API Gateway** | `services/api-gateway/` | — | 8080 | 3 | `routers/` (10 routers, 28 endpoints) |
 | **Frontend** | `web/` | — | 3000 | 0 | 9 pages, 3 shared components, API client |
@@ -531,6 +531,45 @@ New-Ancol-Platform/                    (~295 files)
 - **Frontend Build**: Next.js build clean, all 12 routes compiled
 - **All 120 tests passing** after all fixes
 - **Repo Separation**: Moved to standalone repo `github.com/erikgunawans/New-Ancol-Platform`. Removed from `new-shadow-ai-detector` repo, deleted stale branch, cleaned `.gitignore`
+
+### Session 14 — 2026-04-12
+
+**Scope:** Gemini Enterprise Agent Builder Integration — Hybrid RAG, webhook service, Spanner Graph
+
+- **Design spec**: `docs/superpowers/specs/2026-04-12-gemini-agent-builder-integration-design.md` — full architecture for Vertex AI Agent Builder + Cloud Run webhook + hybrid RAG
+- **New service**: `services/gemini-agent/` — FastAPI webhook with 8 tool handlers (upload_document, review_gate, get_review_detail, submit_decision, check_status, get_report, search_regulations, get_dashboard)
+- **Hybrid RAG**: 3-layer retrieval (Vertex AI Search vectors + Spanner Graph relationships + Cloud SQL exact lookups), authority-ranked re-ranking (UUPT > POJK > SE-OJK > IDX > Internal)
+- **Graph RAG**: Abstract `GraphClient` interface with Spanner Graph (primary) and Neo4j AuraDS (fallback, behind `GRAPH_BACKEND` flag)
+- **RAG orchestrator**: Combines vector search → graph expansion (amendments, supersessions, cross-references) → SQL context → re-rank → deduplicate
+- **Response formatting**: All outputs in Bahasa Indonesia with English legal terms, markdown-formatted for chat
+- **Infrastructure**: New Spanner Graph Terraform module (`infra/modules/spanner-graph/`), gemini-agent SA + IAM bindings, Cloud Run module call
+- **Graph seeding**: `corpus/scripts/seed_regulation_graph.py` — reads regulation chunks, extracts relationships, seeds Spanner Graph nodes/edges
+- **HITL model**: Hybrid — synchronous Gate 1 (extraction review on upload), async Gates 2-4 (different roles, chat-based polling)
+
+**Files created:** `services/gemini-agent/` (14 source files, 6 test files, Dockerfile, pyproject.toml), `infra/modules/spanner-graph/` (3 files), `corpus/scripts/seed_regulation_graph.py`, `docs/superpowers/specs/2026-04-12-gemini-agent-builder-integration-design.md`
+**Files modified:** `infra/modules/security/main.tf` (gemini-agent SA + IAM), `infra/environments/dev/main.tf` (Spanner + Cloud Run modules)
+**Tests:** 149 passing (126 existing + 23 new gemini-agent) across 9 services. Terraform validates. Ruff clean.
+
+---
+
+### Session 13 — 2026-04-12
+
+**Scope:** GCP Deployment & Operations — Terraform fixes, Cloud Run wiring, CI/CD, scanner.py bug fix, Cloud Scheduler, DR, bulk upload scripts
+
+- **TG1.1**: Fixed Pub/Sub `for_each` crash — added `contains(keys(var.push_endpoints), v.push_target)` guard to `infra/modules/pubsub/main.tf:86-88`
+- **TG1.2**: Added 3 missing service accounts (batch-engine, email-ingest, regulation-monitor) + 5 IAM bindings in `infra/modules/security/main.tf`
+- **TG1.3**: Added all 10 Cloud Run module calls to `infra/environments/dev/main.tf`, wired Pub/Sub push endpoints, uncommented workflows module, created `infra/environments/dev/outputs.tf`
+- **TG2.2**: Fixed CI/CD `deploy-agents.yml` — added 3 missing services to fallback, added `web/**` path + `deploy-web` job, fixed service naming to `ancol-$SERVICE_NAME`
+- **TG3**: Created `infra/modules/scheduler/` — 2 Cloud Scheduler jobs (email-scan every 15min, regulation-check daily 06:00 WIB)
+- **TG4.1**: Fixed `scanner.py` undefined `ext` bug — added `_get_content_type()` helper, replaced 2 broken `f"application/{ext}"` references (lines 212, 246), added 6 regression tests (24 total for email-ingest)
+- **TG6**: Created `scripts/validate_historical.py` (CSV manifest pre-flight validation) and `scripts/bulk_upload_historical.py` (GCS bulk upload + JSON records output)
+- **TG8**: Wired DR module in dev/main.tf, updated `schedule_start_date` from 2026-04-10 to 2026-05-01
+
+**Files created:** `infra/environments/dev/outputs.tf`, `infra/modules/scheduler/{main,variables,outputs}.tf`, `scripts/validate_historical.py`, `scripts/bulk_upload_historical.py`
+**Files modified:** `infra/modules/pubsub/main.tf`, `infra/modules/security/main.tf`, `infra/environments/dev/main.tf`, `infra/modules/disaster-recovery/main.tf`, `.github/workflows/deploy-agents.yml`, `services/email-ingest/src/email_ingest/scanner.py`, `services/email-ingest/tests/test_scanner.py`
+**Tests:** 126 passing (120 + 6 new) across 8 services. Terraform validates. Frontend builds. Ruff clean on changed files.
+
+---
 
 ### Session 12 — 2026-04-11
 

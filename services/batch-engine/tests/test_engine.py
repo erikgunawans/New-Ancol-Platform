@@ -112,16 +112,16 @@ class TestBatchSchemas:
     def test_batch_job_create_concurrency_bounds(self):
         from ancol_common.schemas.batch import BatchJobCreate
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             BatchJobCreate(name="Test", document_ids=["id1"], concurrency=0)
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             BatchJobCreate(name="Test", document_ids=["id1"], concurrency=100)
 
     def test_batch_job_create_empty_docs(self):
         from ancol_common.schemas.batch import BatchJobCreate
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             BatchJobCreate(name="Test", document_ids=[])
 
     def test_batch_progress_event(self):

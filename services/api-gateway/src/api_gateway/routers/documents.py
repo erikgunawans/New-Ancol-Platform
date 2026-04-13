@@ -11,7 +11,6 @@ from ancol_common.db.models import Document
 from ancol_common.db.repository import get_document_by_id
 from ancol_common.pubsub.publisher import publish_message
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
-from google.cloud import storage
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/documents", tags=["Documents"])

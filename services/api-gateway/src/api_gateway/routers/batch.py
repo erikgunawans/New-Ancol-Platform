@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 
 from ancol_common.db.connection import get_session
-from ancol_common.utils import SYSTEM_USER_ID
 from ancol_common.db.models import BatchJob, Document
 from ancol_common.db.repository import (
     create_batch_job,
@@ -19,6 +18,7 @@ from ancol_common.schemas.batch import (
     BatchJobDetail,
     BatchJobResponse,
 )
+from ancol_common.utils import SYSTEM_USER_ID
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select

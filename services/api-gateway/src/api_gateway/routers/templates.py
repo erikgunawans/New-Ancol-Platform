@@ -116,7 +116,10 @@ async def resolve_template(
     if template.effective_until and meeting_date > template.effective_until:
         raise HTTPException(
             status_code=404,
-            detail=f"Template expired on {template.effective_until}. Meeting date {meeting_date} is out of range.",
+            detail=(
+                f"Template expired on {template.effective_until}."
+                f" Meeting date {meeting_date} is out of range."
+            ),
         )
 
     return _template_to_response(template)

@@ -11,6 +11,23 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# Prompt files contain long Bahasa Indonesia text — not worth breaking
+"services/*/src/*/prompts/*.py" = ["E501"]
+# Scripts contain long argparse help strings and formatted output
+"corpus/scripts/*.py" = ["E501", "RUF001"]
+"scripts/*.py" = ["E501"]
+# PDF/HTML templates have long CSS/HTML lines
+"services/reporting-agent/src/reporting_agent/generators/pdf.py" = ["E501"]
+# FastAPI uses File(), Query(), Form() as parameter defaults (not mutable defaults)
+"services/api-gateway/src/api_gateway/routers/*.py" = ["B008"]
+# Red flag descriptions are Bahasa Indonesia compliance text
+"services/comparison-agent/src/comparison_agent/analyzers/*.py" = ["E501"]
+# Agent f-string templates with OCR context
+"services/extraction-agent/src/extraction_agent/agent.py" = ["E501"]
+# Structural parser has long formatted validation messages
+"services/extraction-agent/src/extraction_agent/parsers/*.py" = ["E501"]
+
 [tool.ruff.format]
 quote-style = "double"
 

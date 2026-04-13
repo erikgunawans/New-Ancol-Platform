@@ -81,8 +81,7 @@ def detect_quorum_violations(
                 )
             )
 
-    if (quorum_rules or {}).get("chairman_required", True):
-        if not structured_mom.get("chairman"):
+    if (quorum_rules or {}).get("chairman_required", True) and not structured_mom.get("chairman"):
             flags.append(
                 RedFlag(
                     flag_type="chairman_absent",

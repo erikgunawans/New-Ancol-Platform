@@ -34,7 +34,7 @@ async def check_all_sources() -> list[dict]:
         return_exceptions=True,
     )
     changes = []
-    for source, result in zip(ALL_SOURCES, results):
+    for source, result in zip(ALL_SOURCES, results, strict=True):
         if isinstance(result, Exception):
             logger.exception("Failed to check source %s: %s", source.source_id, result)
         else:

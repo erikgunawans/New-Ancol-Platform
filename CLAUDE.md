@@ -29,11 +29,12 @@ PYTHONPATH=packages/ancol-common/src:services/api-gateway/src pytest services/ap
 PYTHONPATH=packages/ancol-common/src:services/batch-engine/src pytest services/batch-engine/tests/ -v
 PYTHONPATH=packages/ancol-common/src:services/email-ingest/src pytest services/email-ingest/tests/ -v
 PYTHONPATH=packages/ancol-common/src:services/regulation-monitor/src pytest services/regulation-monitor/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/gemini-agent/src pytest services/gemini-agent/tests/ -v
 # document-processor: requires google-cloud-documentai (CI only)
 # PYTHONPATH=packages/ancol-common/src:services/document-processor/src pytest services/document-processor/tests/ -v
 
 # Run all local tests (convenience)
-for svc in extraction-agent legal-research-agent comparison-agent reporting-agent api-gateway batch-engine email-ingest regulation-monitor; do
+for svc in extraction-agent legal-research-agent comparison-agent reporting-agent api-gateway batch-engine email-ingest regulation-monitor gemini-agent; do
   PYTHONPATH=packages/ancol-common/src:services/$svc/src python3 -m pytest services/$svc/tests/ -q
 done
 
@@ -57,7 +58,9 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 
 ## Key Files
 
-- **Design Spec:** `docs/superpowers/specs/2026-04-08-agentic-mom-compliance-design.md`
+- **Design Spec (original):** `docs/superpowers/specs/2026-04-08-agentic-mom-compliance-design.md`
+- **Design Spec (Gemini Agent):** `docs/superpowers/specs/2026-04-12-gemini-agent-builder-integration-design.md`
+- **Product Status:** `PRODUCT-STATUS.md` — evolution from PRD to current state (living document)
 - **Progress Tracker:** `PROGRESS.md` — session-by-session log with what's done and what's next
 - **Repository:** https://github.com/erikgunawans/New-Ancol-Platform
 
@@ -66,13 +69,13 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 - **Agents + API:** Python 3.12, FastAPI, Pydantic v2, google-genai SDK
 - **Frontend:** Next.js 15, React 19, Tailwind CSS, shadcn/ui
 - **Database:** PostgreSQL 15 (Cloud SQL), SQLAlchemy 2.0, Alembic
-- **IaC:** Terraform (14 modules in `infra/modules/`)
+- **IaC:** Terraform (15 modules in `infra/modules/`)
 - **CI/CD:** GitHub Actions
 - **Region:** asia-southeast2 (Jakarta) — data sovereignty requirement
 
 ## Architecture
 
-9 Python services on Cloud Run + 1 Next.js frontend:
+10 Python services on Cloud Run + 1 Next.js frontend:
 
 **Document Processing:**
 1. **Document Processor** (Document AI) — `services/document-processor/`
@@ -92,9 +95,12 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 
 **API + Frontend:**
 9. **API Gateway** (FastAPI, 28 REST endpoints) — `services/api-gateway/`
-10. **Frontend** (Next.js 15, React 19, Tailwind) — `web/` — scorecard has 6-month trend charts, batch page has auto-refresh progress bars
+10. **Frontend** (Next.js 15, React 19, Tailwind) — `web/` — analytics companion (trends, heatmaps, batch progress)
 
-Orchestrated by Cloud Workflows (`infra/modules/workflows/workflow.yaml`) with HITL gates between each stage.
+**Gemini Enterprise Interface (primary):**
+11. **Gemini Agent** (Agent Builder webhook, hybrid RAG) — `services/gemini-agent/` — 8 tool handlers, Spanner Graph + Vertex AI Search + SQL retrieval
+
+Orchestrated by Cloud Workflows (`infra/modules/workflows/workflow.yaml`) with HITL gates between each stage. Primary user interface is Gemini Enterprise chat via Vertex AI Agent Builder.
 
 ## Shared Code
 
@@ -118,20 +124,21 @@ All agents share `packages/ancol-common/` which contains:
 
 ## Testing
 
-120 unit tests across 8 services (run locally). Each service tested individually:
+149 unit tests across 9 services (run locally). Each service tested individually:
 - extraction-agent: 9 tests (structural parser, endpoints)
 - legal-research-agent: 9 tests (citation validator, endpoints)
 - comparison-agent: 27 tests (5 red flag detectors, severity scoring)
 - reporting-agent: 16 tests (scorecard calc, PDF rendering)
 - api-gateway: 3 tests (health, API root, CORS)
 - batch-engine: 18 tests (rate limiter, status transitions, schemas, health)
-- email-ingest: 18 tests (filename detection, MoM type, date extraction, health)
+- email-ingest: 24 tests (filename detection, MoM type, date extraction, content type, health)
 - regulation-monitor: 20 tests (sources, relevance filter, date parsing, endpoints)
+- gemini-agent: 23 tests (webhook routing, upload flow, HITL tools, RAG orchestrator, graph client, formatting)
 - document-processor: 7 tests (requires `google-cloud-documentai` — runs in CI only)
 
 ## Current State
 
-**ALL 5 PHASES COMPLETE.** ~295 files, 120 tests locally (127 total incl. CI-only). System is feature-complete. Check `PROGRESS.md` for full details.
+**ALL 5 PHASES + GEMINI AGENT COMPLETE.** ~330 files, 149 tests locally (156 total incl. CI-only). Gemini Enterprise is the primary interface via Agent Builder. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
 
 ## Gotchas
 
@@ -144,3 +151,7 @@ All agents share `packages/ancol-common/` which contains:
 - **System user UUID**: Use `SYSTEM_USER_ID` from `utils.py` (`a0000000-...`), not hardcoded strings
 - **Frontend needs `npm install` first**: `web/node_modules/` is gitignored. Run `cd web && npm install` before `npm run dev` or `npm run build`
 - **Terraform needs `init` before `validate`**: `terraform validate` fails without `terraform init` first (downloads provider plugins). Init requires a GCP backend config or `-backend=false` for local-only validation
+- **Graph backend is swappable**: `GRAPH_BACKEND` env var controls Spanner Graph (default) vs Neo4j AuraDS. The `GraphClient` abstract interface in `rag/graph_client.py` makes the swap transparent
+- **Gemini Agent uses API Gateway as proxy**: The webhook service never accesses Cloud SQL or GCS directly — all calls go through the existing API Gateway via `api_client.py`
+- **HITL is hybrid in Gemini chat**: Gate 1 is synchronous (agent polls until extraction completes, ~5 min max). Gates 2-4 are async (different roles, user initiates review via "Apa yang perlu direview?")
+- **Ruff must include `scripts/` directory**: Bulk upload and seed scripts live in `scripts/` and `corpus/scripts/` — include these paths when running `ruff check`

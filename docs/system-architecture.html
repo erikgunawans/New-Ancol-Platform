@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ancol MoM Compliance System — Architecture & SOP</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ancol-deep: #0a1628;
+  --ancol-navy: #0f2847;
+  --ancol-blue: #1a6fb5;
+  --ancol-teal: #17a2b8;
+  --ancol-cyan: #4dd0e1;
+  --ancol-mint: #26d9a8;
+  --ancol-gold: #f5a623;
+  --ancol-red: #e74c3c;
+  --ancol-orange: #ff8f3f;
+  --ancol-surface: #111d32;
+  --ancol-card: #162240;
+  --ancol-border: rgba(77, 208, 225, 0.15);
+  --ancol-text: #e8edf5;
+  --ancol-muted: #7b8da8;
+  --gemini-blue: #4285f4;
+  --gemini-red: #ea4335;
+  --gemini-yellow: #fbbc04;
+  --gemini-green: #34a853;
+  --hitl-purple: #a78bfa;
+  --glow-teal: 0 0 30px rgba(77, 208, 225, 0.3);
+  --glow-gold: 0 0 20px rgba(245, 166, 35, 0.3);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--ancol-deep);
+  color: var(--ancol-text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(26, 111, 181, 0.08), transparent),
+    radial-gradient(ellipse 60% 50% at 80% 80%, rgba(23, 162, 184, 0.06), transparent),
+    repeating-linear-gradient(0deg, transparent, transparent 100px, rgba(77, 208, 225, 0.02) 100px, rgba(77, 208, 225, 0.02) 101px),
+    repeating-linear-gradient(90deg, transparent, transparent 100px, rgba(77, 208, 225, 0.02) 100px, rgba(77, 208, 225, 0.02) 101px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  padding: 80px 0 60px;
+  text-align: center;
+  position: relative;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ancol-teal), transparent);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(23, 162, 184, 0.1);
+  border: 1px solid rgba(23, 162, 184, 0.25);
+  border-radius: 100px;
+  padding: 8px 20px;
+  font-size: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--ancol-cyan);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  animation: fadeDown 0.6s ease-out;
+}
+
+.badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ancol-mint);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 56px;
+  font-weight: 400;
+  letter-spacing: -1px;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  animation: fadeDown 0.6s ease-out 0.1s both;
+}
+
+h1 .accent {
+  background: linear-gradient(135deg, var(--ancol-cyan), var(--ancol-mint));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  font-size: 18px;
+  color: var(--ancol-muted);
+  font-weight: 300;
+  max-width: 700px;
+  margin: 0 auto 32px;
+  animation: fadeDown 0.6s ease-out 0.2s both;
+}
+
+.hero-meta {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  font-size: 13px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--ancol-muted);
+  animation: fadeDown 0.6s ease-out 0.3s both;
+}
+
+.hero-meta span { display: flex; align-items: center; gap: 6px; }
+.hero-meta .val { color: var(--ancol-cyan); }
+
+.section-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--ancol-teal);
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 36px;
+  font-weight: 400;
+  margin-bottom: 40px;
+}
+
+/* ── Pipeline ── */
+.pipeline-section { padding: 80px 0; }
+
+.pipeline { position: relative; }
+
+.pipeline::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg,
+    var(--ancol-teal) 0%, var(--ancol-blue) 25%,
+    var(--gemini-blue) 50%, var(--ancol-mint) 75%, var(--ancol-gold) 100%);
+  opacity: 0.4;
+  transform: translateX(-50%);
+}
+
+.pipeline::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ancol-cyan);
+  box-shadow: var(--glow-teal);
+  transform: translateX(-50%);
+  animation: flowDown 8s ease-in-out infinite;
+}
+
+.stage {
+  display: flex;
+  align-items: flex-start;
+  gap: 60px;
+  margin-bottom: 24px;
+  position: relative;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stage.visible { opacity: 1; transform: translateY(0); }
+.stage:nth-child(even) { flex-direction: row-reverse; }
+
+.stage-num {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  font-size: 14px;
+  z-index: 2;
+  border: 2px solid;
+}
+
+.stage-num.ingestion { background: rgba(23, 162, 184, 0.15); border-color: var(--ancol-teal); color: var(--ancol-cyan); }
+.stage-num.ai { background: rgba(66, 133, 244, 0.15); border-color: var(--gemini-blue); color: var(--gemini-blue); }
+.stage-num.hitl { background: rgba(167, 139, 250, 0.15); border-color: var(--hitl-purple); color: var(--hitl-purple); }
+.stage-num.output { background: rgba(38, 217, 168, 0.15); border-color: var(--ancol-mint); color: var(--ancol-mint); }
+
+.stage-content { flex: 1; max-width: calc(50% - 50px); }
+
+.stage-card {
+  background: var(--ancol-card);
+  border: 1px solid var(--ancol-border);
+  border-radius: 16px;
+  padding: 28px 32px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stage-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); }
+
+.stage-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+
+.stage-card.type-ingestion::before { background: linear-gradient(90deg, var(--ancol-teal), var(--ancol-cyan)); }
+.stage-card.type-ai::before { background: linear-gradient(90deg, var(--gemini-blue), var(--gemini-green)); }
+.stage-card.type-hitl::before { background: linear-gradient(90deg, var(--hitl-purple), #c084fc); }
+.stage-card.type-output::before { background: linear-gradient(90deg, var(--ancol-mint), var(--ancol-gold)); }
+
+.stage-card h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stage-card .model-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.model-tag.flash { background: rgba(251, 188, 4, 0.15); color: var(--gemini-yellow); }
+.model-tag.pro { background: rgba(66, 133, 244, 0.15); color: var(--gemini-blue); }
+.model-tag.docai { background: rgba(52, 168, 83, 0.15); color: var(--gemini-green); }
+.model-tag.human { background: rgba(167, 139, 250, 0.15); color: var(--hitl-purple); }
+
+.stage-card .desc { font-size: 14px; color: var(--ancol-muted); margin-bottom: 16px; line-height: 1.7; }
+
+.output-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.output-tags span {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(77, 208, 225, 0.08);
+  border: 1px solid rgba(77, 208, 225, 0.15);
+  color: var(--ancol-cyan);
+}
+
+.stage-card.type-hitl .output-tags span {
+  background: rgba(167, 139, 250, 0.08);
+  border-color: rgba(167, 139, 250, 0.2);
+  color: var(--hitl-purple);
+}
+
+.gemini-logo { display: inline-flex; gap: 3px; margin-right: 4px; vertical-align: middle; }
+.gemini-logo span { width: 4px; height: 14px; border-radius: 2px; }
+.gemini-logo span:nth-child(1) { background: var(--gemini-blue); }
+.gemini-logo span:nth-child(2) { background: var(--gemini-red); }
+.gemini-logo span:nth-child(3) { background: var(--gemini-yellow); }
+.gemini-logo span:nth-child(4) { background: var(--gemini-green); }
+
+/* ── State Machine ── */
+.states-section { padding: 80px 0; position: relative; }
+.states-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ancol-border), transparent);
+}
+
+.state-machine { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
+
+.state-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  background: var(--ancol-card);
+  border: 1px solid var(--ancol-border);
+  transition: all 0.3s ease;
+  cursor: default;
+  opacity: 0;
+  animation: stateAppear 0.4s ease-out forwards;
+}
+
+.state-node:hover { transform: scale(1.05); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); }
+
+.state-node .sdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.state-node.s-process .sdot { background: var(--ancol-teal); }
+.state-node.s-ai .sdot { background: var(--gemini-blue); }
+.state-node.s-hitl .sdot { background: var(--hitl-purple); animation: pulse 2s infinite; }
+.state-node.s-end .sdot { background: var(--ancol-mint); }
+.state-node.s-fail .sdot { background: var(--ancol-red); }
+
+.state-arrow {
+  color: var(--ancol-muted);
+  font-size: 16px;
+  opacity: 0;
+  animation: stateAppear 0.4s ease-out forwards;
+}
+
+/* ── Infrastructure Grid ── */
+.infra-section { padding: 80px 0; position: relative; }
+.infra-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ancol-border), transparent);
+}
+
+.infra-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+.infra-card {
+  background: var(--ancol-card);
+  border: 1px solid var(--ancol-border);
+  border-radius: 12px;
+  padding: 24px;
+  transition: all 0.3s ease;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.infra-card.visible { opacity: 1; transform: translateY(0); }
+
+.infra-card:hover {
+  border-color: rgba(77, 208, 225, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.infra-card .icon { font-size: 28px; margin-bottom: 12px; }
+.infra-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.infra-card .detail { font-size: 12px; color: var(--ancol-muted); font-family: 'IBM Plex Mono', monospace; }
+
+/* ── Scorecard ── */
+.scorecard-section { padding: 80px 0; position: relative; }
+.scorecard-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ancol-border), transparent);
+}
+
+.scorecard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; }
+
+.pillar-card {
+  background: var(--ancol-card);
+  border: 1px solid var(--ancol-border);
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.pillar-card .ring { width: 120px; height: 120px; margin: 0 auto 20px; position: relative; }
+.pillar-card .ring svg { transform: rotate(-90deg); }
+
+.pillar-card .ring .score {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+}
+
+.pillar-card h4 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.pillar-card .weight { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ancol-muted); }
+
+/* ── Roles ── */
+.roles-section { padding: 80px 0; position: relative; }
+.roles-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ancol-border), transparent);
+}
+
+.roles-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+.role-card {
+  background: var(--ancol-card);
+  border: 1px solid var(--ancol-border);
+  border-radius: 12px;
+  padding: 28px 24px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.role-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); }
+
+.role-card .avatar {
+  width: 56px; height: 56px; border-radius: 50%;
+  margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+}
+
+.role-card:nth-child(1) .avatar { background: rgba(23, 162, 184, 0.15); border: 2px solid rgba(23, 162, 184, 0.3); }
+.role-card:nth-child(2) .avatar { background: rgba(167, 139, 250, 0.15); border: 2px solid rgba(167, 139, 250, 0.3); }
+.role-card:nth-child(3) .avatar { background: rgba(245, 166, 35, 0.15); border: 2px solid rgba(245, 166, 35, 0.3); }
+.role-card:nth-child(4) .avatar { background: rgba(38, 217, 168, 0.15); border: 2px solid rgba(38, 217, 168, 0.3); }
+
+.role-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.role-card .role-desc { font-size: 12px; color: var(--ancol-muted); }
+
+/* ── Batch Flow ── */
+.batch-section { padding: 80px 0 100px; position: relative; }
+.batch-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ancol-border), transparent);
+}
+
+.batch-flow { display: flex; align-items: center; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+
+.batch-step {
+  background: var(--ancol-card);
+  border: 1px solid var(--ancol-border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  text-align: center;
+  min-width: 150px;
+}
+
+.batch-step h5 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.batch-step p { font-size: 11px; color: var(--ancol-muted); font-family: 'IBM Plex Mono', monospace; }
+.batch-arrow { color: var(--ancol-cyan); font-size: 20px; opacity: 0.5; }
+
+/* ── Gemini Enterprise Wrapper ── */
+.gemini-enterprise-wrap {
+  position: relative;
+  margin: 48px 0;
+  padding: 48px 24px 32px;
+  border: 2px solid rgba(66, 133, 244, 0.25);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(66, 133, 244, 0.04) 0%, rgba(52, 168, 83, 0.03) 50%, rgba(251, 188, 4, 0.03) 100%);
+}
+
+.gemini-enterprise-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--gemini-blue), var(--gemini-red), var(--gemini-yellow), var(--gemini-green));
+  z-index: -1;
+  opacity: 0.15;
+  filter: blur(20px);
+}
+
+.gemini-enterprise-header {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--ancol-deep);
+  padding: 8px 28px;
+  border-radius: 100px;
+  border: 2px solid rgba(66, 133, 244, 0.3);
+  white-space: nowrap;
+}
+
+.gemini-enterprise-header .gemini-icon {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.gemini-enterprise-header .gemini-icon span {
+  display: block;
+  width: 5px;
+  height: 18px;
+  border-radius: 3px;
+}
+
+.gemini-enterprise-header .gemini-icon span:nth-child(1) { background: var(--gemini-blue); }
+.gemini-enterprise-header .gemini-icon span:nth-child(2) { background: var(--gemini-red); }
+.gemini-enterprise-header .gemini-icon span:nth-child(3) { background: var(--gemini-yellow); }
+.gemini-enterprise-header .gemini-icon span:nth-child(4) { background: var(--gemini-green); }
+
+.gemini-enterprise-header .gemini-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  background: linear-gradient(90deg, var(--gemini-blue), var(--gemini-red), var(--gemini-yellow), var(--gemini-green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gemini-enterprise-header .gemini-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--ancol-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.gemini-enterprise-footer {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(66, 133, 244, 0.12);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ancol-muted);
+}
+
+.gemini-enterprise-footer .ge-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gemini-enterprise-footer .ge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.gemini-enterprise-footer .ge-stat:nth-child(1) .ge-dot { background: var(--gemini-blue); }
+.gemini-enterprise-footer .ge-stat:nth-child(2) .ge-dot { background: var(--gemini-red); }
+.gemini-enterprise-footer .ge-stat:nth-child(3) .ge-dot { background: var(--gemini-yellow); }
+.gemini-enterprise-footer .ge-stat:nth-child(4) .ge-dot { background: var(--gemini-green); }
+
+.footer {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ancol-muted);
+  font-family: 'IBM Plex Mono', monospace;
+  border-top: 1px solid var(--ancol-border);
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes flowDown {
+  0% { top: 0; opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes stateAppear {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ringDraw {
+  from { stroke-dashoffset: var(--circumference); }
+  to { stroke-dashoffset: var(--offset); }
+}
+
+@media (max-width: 900px) {
+  h1 { font-size: 36px; }
+  .infra-grid, .roles-grid { grid-template-columns: repeat(2, 1fr); }
+  .scorecard-grid { grid-template-columns: 1fr; }
+  .pipeline::before, .pipeline::after { display: none; }
+  .stage { flex-direction: column !important; gap: 16px; }
+  .stage-content { max-width: 100%; }
+  .stage-num { position: static; transform: none; margin: 0 auto 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <section class="hero">
+    <div class="badge"><span class="dot"></span> GCP asia-southeast2 &middot; Jakarta</div>
+    <h1>Ancol <span class="accent">MoM Compliance</span><br>System Architecture</h1>
+    <p class="subtitle">Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes of Meetings at PT Pembangunan Jaya Ancol Tbk (IDX: PJAA)</p>
+    <div class="hero-meta">
+      <span>Services <span class="val">11</span></span>
+      <span>Agents <span class="val">4 + Gemini</span></span>
+      <span>HITL Gates <span class="val">4</span></span>
+      <span>Tests <span class="val">149</span></span>
+      <span>Hybrid RAG <span class="val">3 layers</span></span>
+    </div>
+  </section>
+
+  <section class="pipeline-section">
+    <div class="section-label">Standard Operating Procedure</div>
+    <div class="section-title">Document Processing Pipeline</div>
+    <div class="pipeline">
+
+      <div class="stage">
+        <span class="stage-num ingestion" style="background:rgba(66,133,244,0.2);border-color:var(--gemini-blue);color:var(--gemini-blue);">
+          <span class="gemini-logo" style="margin:0"><span></span><span></span><span></span><span></span></span>
+        </span>
+        <div class="stage-content">
+          <div class="stage-card type-ai" style="border-color:rgba(66,133,244,0.3);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span class="gemini-logo"><span></span><span></span><span></span><span></span></span>
+              <span style="font-family:'Plus Jakarta Sans';font-weight:700;font-size:13px;background:linear-gradient(90deg,var(--gemini-blue),var(--gemini-red),var(--gemini-yellow),var(--gemini-green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">GEMINI ENTERPRISE</span>
+            </div>
+            <h3>Document Upload via Chat</h3>
+            <p class="desc">Users <strong>drag-and-drop MoM documents</strong> directly into the Gemini Enterprise chat. The Ancol MoM Compliance Assistant (Vertex AI Agent Builder) receives the file, identifies the document type, and triggers the processing pipeline. Also accepts uploads via Gmail API (auto-scan every 15 min) and Board Portal API.</p>
+            <div class="output-tags">
+              <span>Gemini Chat Upload</span>
+              <span>Gmail Auto-Scan</span>
+              <span>Board Portal API</span>
+              <span>PDF / Word / Scan</span>
+            </div>
+          </div>
+        </div>
+        <div class="stage-content"></div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num ingestion">W</span>
+        <div class="stage-content"></div>
+        <div class="stage-content">
+          <div class="stage-card type-ingestion">
+            <h3>Webhook Service <span class="model-tag docai" style="background:rgba(23,162,184,0.15);color:var(--ancol-cyan);">Cloud Run</span></h3>
+            <p class="desc">The <code>gemini-agent</code> webhook bridges Gemini's function calls to the existing API Gateway. Handles file upload proxying, HITL polling, response formatting to Bahasa Indonesia, and role-based tool access for 5 user roles.</p>
+            <div class="output-tags">
+              <span>8 Tool Handlers</span>
+              <span>OIDC Auth</span>
+              <span>Role-Based Access</span>
+              <span>Bahasa Indonesia</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num ai">2</span>
+        <div class="stage-content"></div>
+        <div class="stage-content">
+          <div class="stage-card type-ai">
+            <h3>Document AI Processing <span class="model-tag docai">Document AI</span></h3>
+            <p class="desc">Google Document AI performs OCR on scanned pages, text extraction from PDFs, and structural parsing. Outputs raw text with page/paragraph coordinates. Handles Indonesian language documents natively.</p>
+            <div class="output-tags">
+              <span>OCR</span>
+              <span>Text Extraction</span>
+              <span>Page Coordinates</span>
+              <span>Indonesian NLP</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gemini-enterprise-wrap">
+        <div class="gemini-enterprise-header">
+          <span class="gemini-icon"><span></span><span></span><span></span><span></span></span>
+          <span class="gemini-title">Google Gemini Enterprise</span>
+          <span class="gemini-sub">Vertex AI Platform</span>
+        </div>
+
+      <div class="stage">
+        <span class="stage-num ai">3</span>
+        <div class="stage-content">
+          <div class="stage-card type-ai">
+            <h3>
+              <span class="gemini-logo"><span></span><span></span><span></span><span></span></span>
+              Extraction Agent
+              <span class="model-tag flash">Gemini 2.5 Flash</span>
+            </h3>
+            <p class="desc">Extracts structured data from raw MoM text: meeting metadata, attendees with roles, agenda items, numbered resolutions with assignees/deadlines, quorum status, performance metrics, and cross-references to prior MoMs.</p>
+            <div class="output-tags">
+              <span>StructuredMoM</span>
+              <span>Attendees</span>
+              <span>Resolutions</span>
+              <span>Performance Data</span>
+              <span>Cross-References</span>
+            </div>
+          </div>
+        </div>
+        <div class="stage-content"></div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num hitl">G1</span>
+        <div class="stage-content"></div>
+        <div class="stage-content">
+          <div class="stage-card type-hitl">
+            <h3>HITL Gate 1 <span class="model-tag human">Sync in Chat</span></h3>
+            <p class="desc"><strong>Synchronous in Gemini chat.</strong> The agent presents extraction results immediately after processing. Uploader reviews attendees, resolutions, dates, and quorum inline. Says "Approve", "Reject", or describes modifications in natural language.</p>
+            <div class="output-tags">
+              <span>Approve</span>
+              <span>Reject</span>
+              <span>Modify + Continue</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num ai">4</span>
+        <div class="stage-content">
+          <div class="stage-card type-ai">
+            <h3>
+              <span class="gemini-logo"><span></span><span></span><span></span><span></span></span>
+              Legal Research Agent
+              <span class="model-tag pro">Gemini 2.5 Pro</span>
+            </h3>
+            <p class="desc">Maps each resolution to applicable regulations using <strong>Vertex AI Search RAG</strong> grounded in 69 regulation chunks (OJK, IDX, Company Law, GCG guidelines). Layer 3 anti-hallucination: citation validator cross-checks every reference.</p>
+            <div class="output-tags">
+              <span>Vertex AI Search RAG</span>
+              <span>69 Regulation Chunks</span>
+              <span>Citation Validator</span>
+              <span>Anti-Hallucination L3</span>
+            </div>
+          </div>
+        </div>
+        <div class="stage-content"></div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num hitl">G2</span>
+        <div class="stage-content"></div>
+        <div class="stage-content">
+          <div class="stage-card type-hitl">
+            <h3>HITL Gate 2 <span class="model-tag human">Async Chat</span></h3>
+            <p class="desc"><strong>Async — Legal team.</strong> Legal & Compliance opens Gemini, asks "Apa yang perlu direview?" and sees pending items. Reviews regulation mappings with Hybrid RAG context. Can ask follow-up regulatory questions inline.</p>
+            <div class="output-tags">
+              <span>Verify Citations</span>
+              <span>Check Coverage</span>
+              <span>Flag Gaps</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num ai">5</span>
+        <div class="stage-content">
+          <div class="stage-card type-ai">
+            <h3>
+              <span class="gemini-logo"><span></span><span></span><span></span><span></span></span>
+              Comparison Agent
+              <span class="model-tag pro">Gemini 2.5 Pro</span>
+            </h3>
+            <p class="desc">Runs 5 red flag detectors: <strong>quorum violations</strong>, <strong>conflict of interest</strong>, <strong>missing signatures</strong>, <strong>regulatory non-compliance</strong>, <strong>procedural deviations</strong>. Assigns severity (Critical/High/Medium/Low) with chain-of-thought reasoning.</p>
+            <div class="output-tags">
+              <span>5 Red Flag Detectors</span>
+              <span>Severity Scoring</span>
+              <span>Chain-of-Thought</span>
+              <span>27 Unit Tests</span>
+            </div>
+          </div>
+        </div>
+        <div class="stage-content"></div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num hitl">G3</span>
+        <div class="stage-content"></div>
+        <div class="stage-content">
+          <div class="stage-card type-hitl">
+            <h3>HITL Gate 3 <span class="model-tag human">Async Chat</span></h3>
+            <p class="desc"><strong>Async — Internal Auditor.</strong> Reviews red flags and severity in Gemini chat. Agent presents findings with chain-of-thought reasoning. Auditor confirms or dismisses each flag conversationally.</p>
+            <div class="output-tags">
+              <span>Validate Severity</span>
+              <span>Confirm/Dismiss Flags</span>
+              <span>Escalate Critical</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num ai">6</span>
+        <div class="stage-content">
+          <div class="stage-card type-ai">
+            <h3>
+              <span class="gemini-logo"><span></span><span></span><span></span><span></span></span>
+              Reporting Agent
+              <span class="model-tag flash">Gemini 2.5 Flash</span>
+            </h3>
+            <p class="desc">Generates the three-pillar compliance scorecard, executive summary in Indonesian, detailed PDF report with findings, Excel data export, and 6-month trend analytics. Includes redaction recommendations.</p>
+            <div class="output-tags">
+              <span>Compliance Scorecard</span>
+              <span>PDF Report</span>
+              <span>Excel Export</span>
+              <span>Trend Analytics</span>
+            </div>
+          </div>
+        </div>
+        <div class="stage-content"></div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num hitl">G4</span>
+        <div class="stage-content"></div>
+        <div class="stage-content">
+          <div class="stage-card type-hitl">
+            <h3>HITL Gate 4 <span class="model-tag human">Async Chat</span></h3>
+            <p class="desc"><strong>Async — Komisaris.</strong> Final approval in Gemini chat. Agent presents full scorecard, corrective suggestions, and report preview. Komisaris approves to publish, or requests changes.</p>
+            <div class="output-tags">
+              <span>Final Approval</span>
+              <span>Publish Report</span>
+              <span>Archive to BigQuery</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+        <div class="gemini-enterprise-footer">
+          <span class="ge-stat"><span class="ge-dot"></span>Gemini 2.5 Flash (Extraction + Reporting)</span>
+          <span class="ge-stat"><span class="ge-dot"></span>Gemini 2.5 Pro (Legal Research + Comparison)</span>
+          <span class="ge-stat"><span class="ge-dot"></span>Vertex AI Search RAG (69 regulation chunks)</span>
+          <span class="ge-stat"><span class="ge-dot"></span>Token Bucket Rate Limiter (QPM control)</span>
+        </div>
+      </div>
+
+      <div class="stage">
+        <span class="stage-num output" style="background:rgba(66,133,244,0.2);border-color:var(--gemini-blue);color:var(--gemini-blue);">
+          <span class="gemini-logo" style="margin:0"><span></span><span></span><span></span><span></span></span>
+        </span>
+        <div class="stage-content">
+          <div class="stage-card type-output" style="border-color:rgba(66,133,244,0.3);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span class="gemini-logo"><span></span><span></span><span></span><span></span></span>
+              <span style="font-family:'Plus Jakarta Sans';font-weight:700;font-size:13px;background:linear-gradient(90deg,var(--gemini-blue),var(--gemini-red),var(--gemini-yellow),var(--gemini-green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">RESULTS IN GEMINI CHAT</span>
+            </div>
+            <h3>Compliance Output</h3>
+            <p class="desc">The agent presents the <strong>three-pillar compliance scorecard</strong>, key findings, and corrective suggestions directly in the Gemini chat in Bahasa Indonesia. Users can download PDF/Excel reports, ask follow-up regulatory questions (via Hybrid RAG), or view trend dashboards on the Next.js companion.</p>
+            <div class="output-tags">
+              <span>Chat Scorecard</span>
+              <span>PDF Download</span>
+              <span>Regulation Q&amp;A</span>
+              <span>Next.js Analytics</span>
+              <span>Audit Trail</span>
+            </div>
+          </div>
+        </div>
+        <div class="stage-content"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="states-section">
+    <div class="section-label">Document Lifecycle</div>
+    <div class="section-title">14 States &middot; State Machine</div>
+    <div class="state-machine" id="stateMachine"></div>
+  </section>
+
+  <section class="scorecard-section">
+    <div class="section-label">Compliance Output</div>
+    <div class="section-title">Three-Pillar Compliance Scorecard</div>
+    <div class="scorecard-grid">
+      <div class="pillar-card">
+        <div class="ring">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(77,208,225,0.1)" stroke-width="8"/>
+            <circle class="ring-fill" cx="60" cy="60" r="50" fill="none" stroke="var(--ancol-cyan)" stroke-width="8" stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314" style="--circumference:314;--offset:220"/>
+          </svg>
+          <div class="score" style="color:var(--ancol-cyan)">30%</div>
+        </div>
+        <h4>Completeness</h4>
+        <p class="weight">Weight: 30% of total score</p>
+      </div>
+      <div class="pillar-card">
+        <div class="ring">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(66,133,244,0.1)" stroke-width="8"/>
+            <circle class="ring-fill" cx="60" cy="60" r="50" fill="none" stroke="var(--gemini-blue)" stroke-width="8" stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314" style="--circumference:314;--offset:204"/>
+          </svg>
+          <div class="score" style="color:var(--gemini-blue)">35%</div>
+        </div>
+        <h4>Legal Compliance</h4>
+        <p class="weight">Weight: 35% of total score</p>
+      </div>
+      <div class="pillar-card">
+        <div class="ring">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(38,217,168,0.1)" stroke-width="8"/>
+            <circle class="ring-fill" cx="60" cy="60" r="50" fill="none" stroke="var(--ancol-mint)" stroke-width="8" stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314" style="--circumference:314;--offset:204"/>
+          </svg>
+          <div class="score" style="color:var(--ancol-mint)">35%</div>
+        </div>
+        <h4>Governance Quality</h4>
+        <p class="weight">Weight: 35% of total score</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="roles-section">
+    <div class="section-label">Access Control</div>
+    <div class="section-title">4 User Roles</div>
+    <div class="roles-grid">
+      <div class="role-card">
+        <div class="avatar">&#128221;</div>
+        <h4>Corporate Secretary</h4>
+        <p class="role-desc">Uploads MoMs, manages documents, triggers batch processing</p>
+      </div>
+      <div class="role-card">
+        <div class="avatar">&#128270;</div>
+        <h4>Internal Auditor</h4>
+        <p class="role-desc">Reviews AI outputs at HITL gates, validates findings</p>
+      </div>
+      <div class="role-card">
+        <div class="avatar">&#128081;</div>
+        <h4>Komisaris</h4>
+        <p class="role-desc">Reads compliance reports, approves final outputs, views trends</p>
+      </div>
+      <div class="role-card">
+        <div class="avatar">&#9878;&#65039;</div>
+        <h4>Legal & Compliance</h4>
+        <p class="role-desc">HITL decisions on legal mappings, regulation verification</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="infra-section">
+    <div class="section-label">Infrastructure Layer</div>
+    <div class="section-title">GCP Services &middot; asia-southeast2</div>
+    <div class="infra-grid" id="infraGrid">
+      <div class="infra-card">
+        <div class="icon">&#9741;</div>
+        <h4>Cloud SQL</h4>
+        <div class="detail">PostgreSQL 15 &middot; 15 tables<br>22 indexes &middot; Private VPC</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#128230;</div>
+        <h4>Cloud Storage</h4>
+        <div class="detail">3 buckets: raw, processed, reports<br>KMS encrypted &middot; Versioned</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#128269;</div>
+        <h4>Vertex AI Search</h4>
+        <div class="detail">69 regulation chunks<br>OJK, IDX, Company Law, GCG</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#128202;</div>
+        <h4>BigQuery</h4>
+        <div class="detail">Audit trail &middot; Analytics<br>HITL decision history</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#128233;</div>
+        <h4>Pub/Sub</h4>
+        <div class="detail">8 topics + 8 DLQ<br>Push subscriptions + OIDC</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#128736;</div>
+        <h4>Cloud Workflows</h4>
+        <div class="detail">Pipeline orchestrator<br>4-stage + 4 HITL gates</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#9200;</div>
+        <h4>Cloud Scheduler</h4>
+        <div class="detail">Email scan: */15 * * * *<br>Regulation: 0 6 * * * (WIB)</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#128737;</div>
+        <h4>Security</h4>
+        <div class="detail">11 SAs &middot; KMS &middot; IAP &middot; Cloud Armor<br>Secret Manager &middot; RBAC</div>
+      </div>
+      <div class="infra-card" style="border-color:rgba(66,133,244,0.25);">
+        <div class="icon" style="display:flex;gap:3px;font-size:16px;margin-bottom:12px;">
+          <span style="width:5px;height:20px;border-radius:3px;background:var(--gemini-blue);display:block;"></span>
+          <span style="width:5px;height:20px;border-radius:3px;background:var(--gemini-red);display:block;"></span>
+          <span style="width:5px;height:20px;border-radius:3px;background:var(--gemini-yellow);display:block;"></span>
+          <span style="width:5px;height:20px;border-radius:3px;background:var(--gemini-green);display:block;"></span>
+        </div>
+        <h4>Agent Builder</h4>
+        <div class="detail">Gemini Enterprise agent<br>8 tools &middot; Grounded RAG</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#9878;&#65039;</div>
+        <h4>Spanner Graph</h4>
+        <div class="detail">Regulation knowledge graph<br>~200 nodes &middot; ~1000 edges</div>
+      </div>
+      <div class="infra-card">
+        <div class="icon">&#128421;</div>
+        <h4>Cloud Run</h4>
+        <div class="detail">11 services total<br>9 Python + 1 Next.js + 1 Webhook</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ HYBRID RAG ════════ -->
+  <section class="infra-section">
+    <div class="section-label">Knowledge System</div>
+    <div class="section-title">Hybrid RAG &middot; 3-Layer Retrieval</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;" id="ragGrid">
+      <div class="infra-card" style="border-top:3px solid var(--ancol-cyan);">
+        <div class="icon">&#128269;</div>
+        <h4>Layer 1: Vector Search</h4>
+        <div class="detail" style="margin-bottom:12px;">Vertex AI Search</div>
+        <p style="font-size:13px;color:var(--ancol-muted);line-height:1.6;">Semantic similarity across 69 regulation chunks. Handles natural language queries in Bahasa Indonesia. Returns top-k with relevance scores.</p>
+      </div>
+      <div class="infra-card" style="border-top:3px solid var(--gemini-blue);">
+        <div class="icon">&#9878;&#65039;</div>
+        <h4>Layer 2: Graph RAG</h4>
+        <div class="detail" style="margin-bottom:12px;">Spanner Graph (primary) / Neo4j (fallback)</div>
+        <p style="font-size:13px;color:var(--ancol-muted);line-height:1.6;">Traverses regulation relationships: amendments, supersessions, cross-references, domain mappings. Resolves "which OJK rules amend this clause?" queries.</p>
+      </div>
+      <div class="infra-card" style="border-top:3px solid var(--ancol-mint);">
+        <div class="icon">&#9741;</div>
+        <h4>Layer 3: Structured SQL</h4>
+        <div class="detail" style="margin-bottom:12px;">Cloud SQL (existing)</div>
+        <p style="font-size:13px;color:var(--ancol-muted);line-height:1.6;">Exact lookups: MoMs citing a regulation, historical compliance scores per rule, HITL decision patterns. Adds practical context to search results.</p>
+      </div>
+    </div>
+    <div style="margin-top:28px;padding:20px 28px;background:var(--ancol-card);border:1px solid var(--ancol-border);border-radius:12px;">
+      <h4 style="font-size:14px;margin-bottom:12px;">Re-Ranking Formula</h4>
+      <code style="font-family:'IBM Plex Mono';font-size:13px;color:var(--ancol-cyan);display:block;margin-bottom:12px;">score = relevance_score &times; recency_weight &times; authority_level</code>
+      <div style="display:flex;gap:24px;font-size:12px;color:var(--ancol-muted);font-family:'IBM Plex Mono';flex-wrap:wrap;">
+        <span><strong style="color:var(--ancol-text);">Authority:</strong> UUPT=5 &gt; POJK=4 &gt; SE-OJK=3 &gt; IDX=2 &gt; Internal=1</span>
+        <span><strong style="color:var(--ancol-text);">Recency:</strong> &lt;2yr=1.0 &middot; 2-5yr=0.8 &middot; &gt;5yr=0.6</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="batch-section">
+    <div class="section-label">Historical Processing</div>
+    <div class="section-title">Bulk Upload &middot; 500+ MoMs</div>
+    <div class="batch-flow">
+      <div class="batch-step">
+        <h5>1. Validate</h5>
+        <p>validate_historical.py<br>CSV manifest check</p>
+      </div>
+      <span class="batch-arrow">&rarr;</span>
+      <div class="batch-step">
+        <h5>2. Upload</h5>
+        <p>bulk_upload.py<br>GCS raw bucket</p>
+      </div>
+      <span class="batch-arrow">&rarr;</span>
+      <div class="batch-step">
+        <h5>3. Register</h5>
+        <p>POST /api/batch<br>Create batch job</p>
+      </div>
+      <span class="batch-arrow">&rarr;</span>
+      <div class="batch-step">
+        <h5>4. Process</h5>
+        <p>Batch Engine<br>concurrency=20</p>
+      </div>
+      <span class="batch-arrow">&rarr;</span>
+      <div class="batch-step">
+        <h5>5. Review</h5>
+        <p>4 HITL gates<br>per document</p>
+      </div>
+      <span class="batch-arrow">&rarr;</span>
+      <div class="batch-step">
+        <h5>6. Complete</h5>
+        <p>Scorecard + report<br>Trend analytics</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    PT Pembangunan Jaya Ancol Tbk (IDX: PJAA) &middot; Ancol MoM Compliance System &middot; Gemini Enterprise + Vertex AI Agent Builder &middot; GCP asia-southeast2 &middot; Data Sovereignty: Indonesia
+  </footer>
+
+</div>
+
+<script>
+(function() {
+  var states = [
+    { name: 'pending', type: 's-process' },
+    { name: 'processing_ocr', type: 's-process' },
+    { name: 'ocr_complete', type: 's-process' },
+    { name: 'extracting', type: 's-ai' },
+    { name: 'hitl_gate_1', type: 's-hitl' },
+    { name: 'researching', type: 's-ai' },
+    { name: 'hitl_gate_2', type: 's-hitl' },
+    { name: 'comparing', type: 's-ai' },
+    { name: 'hitl_gate_3', type: 's-hitl' },
+    { name: 'reporting', type: 's-ai' },
+    { name: 'hitl_gate_4', type: 's-hitl' },
+    { name: 'complete', type: 's-end' },
+    { name: 'failed', type: 's-fail' },
+    { name: 'rejected', type: 's-fail' }
+  ];
+
+  var container = document.getElementById('stateMachine');
+  states.forEach(function(s, i) {
+    var node = document.createElement('div');
+    node.className = 'state-node ' + s.type;
+    node.style.animationDelay = (i * 60) + 'ms';
+
+    var dot = document.createElement('span');
+    dot.className = 'sdot';
+    node.appendChild(dot);
+    node.appendChild(document.createTextNode(s.name));
+    container.appendChild(node);
+
+    if (i < states.length - 1 && i !== 11) {
+      var arrow = document.createElement('span');
+      arrow.className = 'state-arrow';
+      arrow.style.animationDelay = (i * 60 + 30) + 'ms';
+      arrow.textContent = '\u2192';
+      container.appendChild(arrow);
+    }
+  });
+
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+
+  document.querySelectorAll('.stage').forEach(function(el, i) {
+    el.style.transitionDelay = (i * 80) + 'ms';
+    observer.observe(el);
+  });
+
+  document.querySelectorAll('.infra-card').forEach(function(el, i) {
+    el.style.transitionDelay = (i * 60) + 'ms';
+    observer.observe(el);
+  });
+
+  var ringObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.querySelectorAll('.ring-fill').forEach(function(ring) {
+          ring.style.animation = 'ringDraw 1.5s ease-out forwards';
+        });
+      }
+    });
+  }, { threshold: 0.3 });
+
+  document.querySelectorAll('.pillar-card').forEach(function(el) {
+    ringObserver.observe(el);
+  });
+})();
+</script>
+</body>
+</html>

@@ -45,7 +45,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Ancol MoM Compliance API",
-    description="Central REST API for the Agentic AI MoM Compliance System — PT Pembangunan Jaya Ancol Tbk",
+    description=(
+        "Central REST API for the Agentic AI MoM Compliance System"
+        " — PT Pembangunan Jaya Ancol Tbk"
+    ),
     version="0.1.0",
     lifespan=lifespan,
 )
