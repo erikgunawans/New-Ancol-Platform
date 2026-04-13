@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import ObligationRecord
@@ -112,7 +112,7 @@ async def get_upcoming_obligations(days: int = Query(30, le=90)):
     """Get obligations due within N days."""
     from sqlalchemy import select
 
-    target_date = date.today() + __import__("datetime").timedelta(days=days)
+    target_date = date.today() + timedelta(days=days)
 
     async with get_session() as session:
         result = await session.execute(

@@ -180,11 +180,10 @@ async def _dispatch_tool(
         return await handle_get_contract_portfolio(params, api, user)
 
     if tool_name == "get_contract_risk":
-        from gemini_agent.tools.contracts import handle_check_contract_status
-
-        # Risk endpoint returns risk data; reuse status handler with risk API
-        params["contract_id"] = params.get("contract_id", "")
-        data = await api.get_contract_risk(params["contract_id"])
+        contract_id = params.get("contract_id", "")
+        if not contract_id:
+            return "Error: Mohon berikan contract_id."
+        data = await api.get_contract_risk(contract_id)
         from gemini_agent.formatting import format_contract_risk
 
         return format_contract_risk(data)

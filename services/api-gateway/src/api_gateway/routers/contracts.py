@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
@@ -282,7 +282,5 @@ async def download_contract(contract_id: str):
     bucket = gcs_client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
 
-    import datetime as dt
-
-    url = blob.generate_signed_url(expiration=dt.timedelta(hours=1))
+    url = blob.generate_signed_url(expiration=timedelta(hours=1))
     return {"download_url": url}

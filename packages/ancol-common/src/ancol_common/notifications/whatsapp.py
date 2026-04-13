@@ -2,8 +2,6 @@
 
 Sends templated messages containing only IDs, dates, and deep links.
 No sensitive contract/MoM content is transmitted — data stays in asia-southeast2.
-
-Falls back to email via SendGrid if WhatsApp delivery fails.
 """
 
 from __future__ import annotations
