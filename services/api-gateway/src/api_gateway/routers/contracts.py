@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from pathlib import PurePosixPath
 
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
@@ -66,10 +67,10 @@ def _contract_to_response(c: Contract) -> ContractResponse:
         status=c.status,
         effective_date=c.effective_date,
         expiry_date=c.expiry_date,
-        total_value=float(c.total_value) if c.total_value else None,
+        total_value=float(c.total_value) if c.total_value is not None else None,
         currency=c.currency,
         risk_level=c.risk_level,
-        risk_score=float(c.risk_score) if c.risk_score else None,
+        risk_score=float(c.risk_score) if c.risk_score is not None else None,
         page_count=c.page_count,
         created_at=c.created_at,
         updated_at=c.updated_at,
@@ -94,7 +95,8 @@ async def upload_contract(
 
     gcs_client = get_gcs_client()
     bucket = gcs_client.bucket(settings.bucket_contracts)
-    blob_name = f"uploads/{doc_id}/{file.filename}"
+    safe_filename = PurePosixPath(file.filename or "unknown").name
+    blob_name = f"uploads/{doc_id}/{safe_filename}"
     blob = bucket.blob(blob_name)
     blob.metadata = {"contract_id": doc_id, "uploaded_by": uploaded_by}
     blob.upload_from_string(

@@ -153,10 +153,13 @@ resource "google_project_iam_member" "api_storage_reader" {
   member  = "serviceAccount:${google_service_account.agents["api-gateway"].email}"
 }
 
-# API Gateway: Storage admin for contracts bucket (upload + download)
+# API Gateway: Storage creator for contracts bucket (upload)
+# Note: objectViewer already granted above for report downloads — covers read access.
+# Using objectCreator (not objectAdmin) to avoid granting delete on all buckets.
+# Bucket-level IAM should be added when dev/main.tf wires the storage module output.
 resource "google_project_iam_member" "api_contracts_storage" {
   project = var.project_id
-  role    = "roles/storage.objectAdmin"
+  role    = "roles/storage.objectCreator"
   member  = "serviceAccount:${google_service_account.agents["api-gateway"].email}"
 }
 
