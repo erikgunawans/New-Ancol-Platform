@@ -366,9 +366,10 @@ module "scheduler" {
   prefix                        = local.prefix
   email_ingest_url              = module.run_email_ingest.service_url
   regulation_monitor_url        = module.run_regulation_monitor.service_url
+  api_gateway_url               = module.run_api_gateway.service_url
   invoker_service_account_email = module.security.service_account_emails["api-gateway"]
 
-  depends_on = [module.run_email_ingest, module.run_regulation_monitor]
+  depends_on = [module.run_email_ingest, module.run_regulation_monitor, module.run_api_gateway]
 }
 
 # ── Module 13: Disaster Recovery ──

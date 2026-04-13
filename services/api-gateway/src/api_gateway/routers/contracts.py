@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, date, datetime, timedelta
 from pathlib import PurePosixPath
 
@@ -91,30 +90,38 @@ async def upload_contract(
     from ancol_common.utils import get_gcs_client
 
     content = await file.read()
-    doc_id = str(uuid.uuid4())
 
-    gcs_client = get_gcs_client()
-    bucket = gcs_client.bucket(settings.bucket_contracts)
-    safe_filename = PurePosixPath(file.filename or "unknown").name
-    blob_name = f"uploads/{doc_id}/{safe_filename}"
-    blob = bucket.blob(blob_name)
-    blob.metadata = {"contract_id": doc_id, "uploaded_by": uploaded_by}
-    blob.upload_from_string(
-        content, content_type=file.content_type or "application/octet-stream"
-    )
-
-    gcs_raw_uri = f"gs://{settings.bucket_contracts}/{blob_name}"
-
+    # Create DB record first to get the canonical contract ID
     async with get_session() as session:
         contract = await create_contract(
             session,
             title=title,
             contract_type=contract_type,
             uploaded_by=uploaded_by,
-            gcs_raw_uri=gcs_raw_uri,
             contract_number=contract_number,
         )
         contract_id = str(contract.id)
+
+    # Upload to GCS using the DB-generated contract ID
+    gcs_client = get_gcs_client()
+    bucket = gcs_client.bucket(settings.bucket_contracts)
+    safe_filename = PurePosixPath(file.filename or "unknown").name
+    blob_name = f"uploads/{contract_id}/{safe_filename}"
+    blob = bucket.blob(blob_name)
+    blob.metadata = {"contract_id": contract_id, "uploaded_by": uploaded_by}
+    blob.upload_from_string(
+        content, content_type=file.content_type or "application/octet-stream"
+    )
+
+    gcs_raw_uri = f"gs://{settings.bucket_contracts}/{blob_name}"
+
+    # Update the contract record with the GCS URI
+    async with get_session() as session:
+        from ancol_common.db.repository import get_contract_by_id
+
+        c = await get_contract_by_id(session, contract_id)
+        if c:
+            c.gcs_raw_uri = gcs_raw_uri
 
     publish_message(
         "contract-uploaded",

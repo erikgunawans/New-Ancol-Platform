@@ -25,9 +25,8 @@ variable "regulation_monitor_url" {
 }
 
 variable "api_gateway_url" {
-  description = "API Gateway Cloud Run service URL"
+  description = "API Gateway Cloud Run service URL (required for obligation scheduler)"
   type        = string
-  default     = ""
 }
 
 variable "invoker_service_account_email" {

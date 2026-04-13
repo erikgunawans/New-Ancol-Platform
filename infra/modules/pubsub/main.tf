@@ -49,8 +49,8 @@ locals {
     }
     # Contract Lifecycle Management
     "contract-uploaded" = {
-      description = "Contract uploaded, ready for extraction"
-      push_target = "extraction-agent"
+      description = "Contract uploaded, ready for processing pipeline"
+      push_target = "" # Phase 2: will be consumed by contract extraction workflow
     }
     "contract-analyzed" = {
       description = "Contract risk analysis complete"
