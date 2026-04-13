@@ -27,3 +27,13 @@ output "reports_bucket_url" {
   description = "URL of the reports bucket"
   value       = google_storage_bucket.reports.url
 }
+
+output "contracts_bucket_name" {
+  description = "Name of the contracts bucket"
+  value       = google_storage_bucket.contracts.name
+}
+
+output "contracts_bucket_url" {
+  description = "URL of the contracts bucket"
+  value       = google_storage_bucket.contracts.url
+}

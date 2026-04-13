@@ -143,6 +143,49 @@ resource "google_storage_bucket" "reports" {
   }
 }
 
+# Contract documents (CLM expansion)
+resource "google_storage_bucket" "contracts" {
+  name          = "${var.project_id}-contracts"
+  project       = var.project_id
+  location      = var.region
+  storage_class = "STANDARD"
+
+  uniform_bucket_level_access = true
+
+  versioning {
+    enabled = true
+  }
+
+  encryption {
+    default_kms_key_name = var.kms_key_id
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 180 # Nearline after 6 months
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 1095 # Archive after 3 years
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "ARCHIVE"
+    }
+  }
+
+  labels = {
+    environment = var.environment
+    purpose     = "contract-documents"
+  }
+}
+
 # Grant Cloud KMS encrypter/decrypter to the GCS service agent
 data "google_storage_project_service_account" "gcs_account" {
   project = var.project_id

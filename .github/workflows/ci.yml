@@ -66,7 +66,7 @@ jobs:
         run: |
           for svc in services/*/; do
             if [ -f "$svc/pyproject.toml" ]; then
-              pip install -e "$svc[test]" 2>/dev/null || pip install -e "$svc" 2>/dev/null || true
+              pip install -e "$svc[test]" 2>/dev/null || pip install -e "$svc"
             fi
           done
       - name: Run tests

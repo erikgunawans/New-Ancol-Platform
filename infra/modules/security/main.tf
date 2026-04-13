@@ -153,6 +153,20 @@ resource "google_project_iam_member" "api_storage_reader" {
   member  = "serviceAccount:${google_service_account.agents["api-gateway"].email}"
 }
 
+# API Gateway: Storage admin for contracts bucket (upload + download)
+resource "google_project_iam_member" "api_contracts_storage" {
+  project = var.project_id
+  role    = "roles/storage.objectAdmin"
+  member  = "serviceAccount:${google_service_account.agents["api-gateway"].email}"
+}
+
+# Extraction Agent: Storage viewer for contracts bucket (read for extraction)
+resource "google_project_iam_member" "extraction_contracts_storage" {
+  project = var.project_id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.agents["extraction-agent"].email}"
+}
+
 # API Gateway: BigQuery data editor (audit trail writes)
 resource "google_project_iam_member" "api_bigquery" {
   project = var.project_id
@@ -179,6 +193,19 @@ resource "google_secret_manager_secret" "db_password" {
 
 resource "google_secret_manager_secret" "sendgrid_api_key" {
   secret_id = "${var.prefix}-sendgrid-api-key"
+  project   = var.project_id
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret" "whatsapp_api_token" {
+  secret_id = "${var.prefix}-whatsapp-api-token"
   project   = var.project_id
 
   replication {

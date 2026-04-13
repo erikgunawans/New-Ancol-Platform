@@ -47,6 +47,19 @@ locals {
       description = "Batch processing status updates"
       push_target = "api-gateway"
     }
+    # Contract Lifecycle Management
+    "contract-uploaded" = {
+      description = "Contract uploaded, ready for extraction"
+      push_target = "extraction-agent"
+    }
+    "contract-analyzed" = {
+      description = "Contract risk analysis complete"
+      push_target = "api-gateway"
+    }
+    "obligation-reminder" = {
+      description = "Obligation deadline reminder events"
+      push_target = "api-gateway"
+    }
   }
 }
 
