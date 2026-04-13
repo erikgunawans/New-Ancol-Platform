@@ -72,6 +72,18 @@ class Settings(BaseModel):
     # BigQuery
     bq_dataset: str = os.getenv("BQ_DATASET", "ancol_compliance_analytics")
 
+    # Contract Lifecycle Management
+    bucket_contracts: str = os.getenv("BUCKET_CONTRACTS", "ancol-contracts")
+    contract_confidence_threshold: float = float(
+        os.getenv("CONTRACT_CONFIDENCE_THRESHOLD", "0.85")
+    )
+    contract_reminder_days: int = int(os.getenv("CONTRACT_REMINDER_DAYS", "90"))
+    obligation_check_schedule: str = os.getenv("OBLIGATION_CHECK_SCHEDULE", "0 7 * * *")
+
+    # WhatsApp
+    whatsapp_api_token: str = os.getenv("WHATSAPP_API_TOKEN", "")
+    whatsapp_api_url: str = os.getenv("WHATSAPP_API_URL", "")
+
     # Environment
     environment: str = os.getenv("ENVIRONMENT", "dev")
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"

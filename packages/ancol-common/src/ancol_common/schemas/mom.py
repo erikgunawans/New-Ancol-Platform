@@ -76,6 +76,8 @@ class UserRole(StrEnum):
     INTERNAL_AUDITOR = "internal_auditor"
     KOMISARIS = "komisaris"
     LEGAL_COMPLIANCE = "legal_compliance"
+    CONTRACT_MANAGER = "contract_manager"
+    BUSINESS_DEV = "business_dev"
     ADMIN = "admin"
 
 

@@ -18,7 +18,17 @@ from .comparison import (
     ConsistencyCheck,
     RedFlagSummary,
 )
+from .contract import (
+    ContractClause,
+    ContractExtractionOutput,
+    ContractMetadata,
+    ContractParty,
+    ContractStatus,
+    ContractType,
+    RiskLevel,
+)
 from .document import DocumentMetadata
+from .drafting import ClauseLibraryEntry, DraftOutput, DraftRequest
 from .extraction import ExtractionInput, ExtractionOutput, TemplateConfig
 from .hitl import HitlDecision, HitlReviewItem
 from .legal_research import (
@@ -48,6 +58,7 @@ from .mom import (
     StructuredMoM,
     UserRole,
 )
+from .obligation import Obligation, ObligationStatus, ObligationType
 from .reporting import (
     ComplianceScorecard,
     CorrectiveSuggestion,
@@ -67,12 +78,19 @@ __all__ = [
     "BatchPriorityOrder",
     "BatchProgressEvent",
     "BatchStatus",
+    "ClauseLibraryEntry",
     "ComparisonInput",
     "ComparisonOutput",
     "ComplianceFinding",
     "ComplianceScorecard",
     "ComplianceStatus",
     "ConsistencyCheck",
+    "ContractClause",
+    "ContractExtractionOutput",
+    "ContractMetadata",
+    "ContractParty",
+    "ContractStatus",
+    "ContractType",
     "CorpusFreshness",
     "CorrectiveSuggestion",
     "CrossReference",
@@ -80,6 +98,8 @@ __all__ = [
     "DocumentFormat",
     "DocumentMetadata",
     "DocumentStatus",
+    "DraftOutput",
+    "DraftRequest",
     "ExtractionInput",
     "ExtractionOutput",
     "FindingSeverity",
@@ -90,6 +110,9 @@ __all__ = [
     "LegalResearchInput",
     "LegalResearchOutput",
     "MomType",
+    "Obligation",
+    "ObligationStatus",
+    "ObligationType",
     "PerformanceData",
     "PerformanceMetric",
     "ProcessingMetadata",
@@ -99,6 +122,7 @@ __all__ = [
     "ReportingInput",
     "ReportingOutput",
     "Resolution",
+    "RiskLevel",
     "SectionMapping",
     "StructuredMoM",
     "TemplateConfig",

@@ -11,7 +11,7 @@ export type MomType = "regular" | "circular" | "extraordinary";
 export type Severity = "critical" | "high" | "medium" | "low";
 export type HitlGate = "gate_1" | "gate_2" | "gate_3" | "gate_4";
 export type HitlDecision = "approved" | "rejected" | "modified";
-export type UserRole = "corp_secretary" | "internal_auditor" | "komisaris" | "legal_compliance" | "admin";
+export type UserRole = "corp_secretary" | "internal_auditor" | "komisaris" | "legal_compliance" | "contract_manager" | "business_dev" | "admin";
 
 export interface DocumentSummary {
   id: string;
