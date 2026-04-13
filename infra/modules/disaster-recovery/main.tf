@@ -126,8 +126,8 @@ resource "google_storage_transfer_job" "raw_replication" {
   schedule {
     schedule_start_date {
       year  = 2026
-      month = 4
-      day   = 10
+      month = 5
+      day   = 1
     }
     start_time_of_day {
       hours   = 0
@@ -156,8 +156,8 @@ resource "google_storage_transfer_job" "reports_replication" {
   schedule {
     schedule_start_date {
       year  = 2026
-      month = 4
-      day   = 10
+      month = 5
+      day   = 1
     }
     start_time_of_day {
       hours   = 0

@@ -5,6 +5,7 @@ from __future__ import annotations
 from email_ingest.scanner import (
     _detect_mom_type,
     _extract_meeting_date,
+    _get_content_type,
     _is_mom_attachment,
 )
 
@@ -77,3 +78,26 @@ class TestMeetingDateExtraction:
     def test_mixed_text(self):
         result = _extract_meeting_date("FW: Risalah Rapat BOD 20 Maret 2026 — Final")
         assert result == "2026-03-20"
+
+
+class TestContentType:
+    """Tests for content type detection from filename."""
+
+    def test_pdf(self):
+        assert _get_content_type("Risalah.pdf") == "application/pdf"
+
+    def test_docx(self):
+        expected = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        assert _get_content_type("Notulen.docx") == expected
+
+    def test_jpg(self):
+        assert _get_content_type("scan.jpg") == "image/jpeg"
+
+    def test_tiff(self):
+        assert _get_content_type("scan.tiff") == "image/tiff"
+
+    def test_unknown_extension_defaults_to_pdf(self):
+        assert _get_content_type("file.xyz") == "application/pdf"
+
+    def test_no_extension_defaults_to_pdf(self):
+        assert _get_content_type("noext") == "application/pdf"

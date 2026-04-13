@@ -47,6 +47,10 @@ locals {
     "reporting-agent"      = "Reporting Agent (Gemini Flash)"
     "document-processor"   = "Document AI processor service"
     "web-frontend"         = "Next.js frontend service"
+    "batch-engine"         = "Batch processing orchestrator"
+    "email-ingest"         = "Gmail inbox scanner"
+    "regulation-monitor"   = "Regulation change detector"
+    "gemini-agent"         = "Gemini Agent Builder webhook service"
   }
 }
 
@@ -85,6 +89,10 @@ resource "google_project_iam_member" "agent_pubsub_publisher" {
     "comparison-agent",
     "reporting-agent",
     "document-processor",
+    "batch-engine",
+    "email-ingest",
+    "regulation-monitor",
+    "gemini-agent",
   ])
 
   project = var.project_id
@@ -100,6 +108,9 @@ resource "google_project_iam_member" "agent_sql_client" {
     "legal-research-agent",
     "comparison-agent",
     "reporting-agent",
+    "batch-engine",
+    "email-ingest",
+    "gemini-agent",
   ])
 
   project = var.project_id
@@ -199,11 +210,42 @@ resource "google_secret_manager_secret_iam_member" "agent_db_password" {
     "legal-research-agent",
     "comparison-agent",
     "reporting-agent",
+    "batch-engine",
+    "email-ingest",
+    "gemini-agent",
   ])
 
   secret_id = google_secret_manager_secret.db_password.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.agents[each.key].email}"
+}
+
+# Batch Engine: Storage viewer (read documents for processing)
+resource "google_project_iam_member" "batch_storage" {
+  project = var.project_id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.agents["batch-engine"].email}"
+}
+
+# Email Ingest: Storage admin (upload attachments to raw bucket)
+resource "google_project_iam_member" "email_ingest_storage" {
+  project = var.project_id
+  role    = "roles/storage.objectAdmin"
+  member  = "serviceAccount:${google_service_account.agents["email-ingest"].email}"
+}
+
+# Regulation Monitor: Discovery Engine editor (update Vertex AI Search corpus)
+resource "google_project_iam_member" "regulation_discovery" {
+  project = var.project_id
+  role    = "roles/discoveryengine.editor"
+  member  = "serviceAccount:${google_service_account.agents["regulation-monitor"].email}"
+}
+
+# Gemini Agent: Spanner database user
+resource "google_project_iam_member" "gemini_agent_spanner" {
+  project = var.project_id
+  role    = "roles/spanner.databaseUser"
+  member  = "serviceAccount:${google_service_account.agents["gemini-agent"].email}"
 }
 
 # ============================================================

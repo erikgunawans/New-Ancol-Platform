@@ -84,7 +84,7 @@ resource "google_pubsub_topic" "dlq" {
 # Push subscriptions (for topics with push targets)
 resource "google_pubsub_subscription" "push" {
   for_each = {
-    for k, v in local.topics : k => v if v.push_target != ""
+    for k, v in local.topics : k => v if v.push_target != "" && contains(keys(var.push_endpoints), v.push_target)
   }
 
   name    = "${var.prefix}-${each.key}-push"

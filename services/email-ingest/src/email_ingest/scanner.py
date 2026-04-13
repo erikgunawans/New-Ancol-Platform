@@ -36,6 +36,23 @@ ALLOWED_MIMETYPES = {
     "image/tiff",
 }
 
+_EXTENSION_TO_CONTENT_TYPE: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".tiff": "image/tiff",
+    ".tif": "image/tiff",
+}
+
+
+def _get_content_type(filename: str) -> str:
+    """Get MIME content type from filename extension."""
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return _EXTENSION_TO_CONTENT_TYPE.get(ext, "application/pdf")
+
 # Gmail label for processed emails
 PROCESSED_LABEL = "MoM-Processed"
 
@@ -209,7 +226,8 @@ async def _upload_to_pipeline(
         "email_subject": subject,
         "email_message_id": email_message_id,
     }
-    blob.upload_from_string(content, content_type=f"application/{ext}")
+    content_type = _get_content_type(filename)
+    blob.upload_from_string(content, content_type=content_type)
 
     gcs_raw_uri = f"gs://{settings.bucket_raw}/{blob_name}"
 
@@ -243,7 +261,7 @@ async def _upload_to_pipeline(
             "document_id": doc_id,
             "bucket": settings.bucket_raw,
             "name": blob_name,
-            "contentType": f"application/{ext}",
+            "contentType": content_type,
             "size": str(len(content)),
             "metadata": {
                 "document_id": doc_id,
