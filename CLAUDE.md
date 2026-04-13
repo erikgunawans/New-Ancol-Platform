@@ -17,21 +17,21 @@ cd web && npm install && cd ..              # install frontend deps
 
 ```bash
 # Lint (Python)
-ruff check packages/ services/
-ruff format --check packages/ services/
+ruff check packages/ services/ scripts/ corpus/scripts/
+ruff format --check packages/ services/ scripts/ corpus/scripts/
 
 # Test per service (must run individually due to namespace isolation)
-PYTHONPATH=packages/ancol-common/src:services/extraction-agent/src pytest services/extraction-agent/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/legal-research-agent/src pytest services/legal-research-agent/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/comparison-agent/src pytest services/comparison-agent/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/reporting-agent/src pytest services/reporting-agent/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/api-gateway/src pytest services/api-gateway/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/batch-engine/src pytest services/batch-engine/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/email-ingest/src pytest services/email-ingest/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/regulation-monitor/src pytest services/regulation-monitor/tests/ -v
-PYTHONPATH=packages/ancol-common/src:services/gemini-agent/src pytest services/gemini-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/extraction-agent/src python3 -m pytest services/extraction-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/legal-research-agent/src python3 -m pytest services/legal-research-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/comparison-agent/src python3 -m pytest services/comparison-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/reporting-agent/src python3 -m pytest services/reporting-agent/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/api-gateway/src python3 -m pytest services/api-gateway/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/batch-engine/src python3 -m pytest services/batch-engine/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/email-ingest/src python3 -m pytest services/email-ingest/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/regulation-monitor/src python3 -m pytest services/regulation-monitor/tests/ -v
+PYTHONPATH=packages/ancol-common/src:services/gemini-agent/src python3 -m pytest services/gemini-agent/tests/ -v
 # document-processor: requires google-cloud-documentai (CI only)
-# PYTHONPATH=packages/ancol-common/src:services/document-processor/src pytest services/document-processor/tests/ -v
+# PYTHONPATH=packages/ancol-common/src:services/document-processor/src python3 -m pytest services/document-processor/tests/ -v
 
 # Run all local tests (convenience)
 for svc in extraction-agent legal-research-agent comparison-agent reporting-agent api-gateway batch-engine email-ingest regulation-monitor gemini-agent; do
@@ -69,7 +69,7 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 - **Agents + API:** Python 3.12, FastAPI, Pydantic v2, google-genai SDK
 - **Frontend:** Next.js 15, React 19, Tailwind CSS, shadcn/ui
 - **Database:** PostgreSQL 15 (Cloud SQL), SQLAlchemy 2.0, Alembic
-- **IaC:** Terraform (15 modules in `infra/modules/`)
+- **IaC:** Terraform (16 modules in `infra/modules/`)
 - **CI/CD:** GitHub Actions
 - **Region:** asia-southeast2 (Jakarta) — data sovereignty requirement
 
@@ -112,7 +112,7 @@ All agents share `packages/ancol-common/` which contains:
 - `auth/` — IAP JWT verification, RBAC permission matrix, SSO auth middleware
 - `integrations/` — Board portal + ERP adapters (abstract base)
 - `utils.py` — Shared helpers: `parse_indonesian_date`, `detect_document_format`, `parse_gcs_uri`, `SYSTEM_USER_ID`
-- `config.py` — 31 environment-based settings
+- `config.py` — 34 environment-based settings
 
 ## Conventions
 

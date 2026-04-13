@@ -82,15 +82,15 @@ def detect_quorum_violations(
             )
 
     if (quorum_rules or {}).get("chairman_required", True) and not structured_mom.get("chairman"):
-            flags.append(
-                RedFlag(
-                    flag_type="chairman_absent",
-                    severity="high",
-                    description="Ketua Rapat (Direktur Utama) tidak teridentifikasi atau tidak hadir",
-                    evidence="Field chairman kosong",
-                    regulation_ref="AD/ART Pasal 13, BOD Charter Pasal 4",
-                )
+        flags.append(
+            RedFlag(
+                flag_type="chairman_absent",
+                severity="high",
+                description="Ketua Rapat (Direktur Utama) tidak teridentifikasi atau tidak hadir",
+                evidence="Field chairman kosong",
+                regulation_ref="AD/ART Pasal 13, BOD Charter Pasal 4",
             )
+        )
 
     return flags
 
