@@ -114,6 +114,81 @@ export const pauseBatchJob = (id: string) =>
 export const resumeBatchJob = (id: string) =>
   fetchApi<{ status: string }>(`/api/batch/${id}/resume`, { method: "POST" });
 
+// Contracts
+export const getContracts = (status?: string, contractType?: string, limit = 50) =>
+  fetchApi<{ contracts: import("@/types").ContractSummary[]; total: number }>(
+    `/api/contracts?limit=${limit}${status ? `&status=${status}` : ""}${contractType ? `&contract_type=${contractType}` : ""}`
+  );
+
+export const getContract = (id: string) =>
+  fetchApi<import("@/types").ContractSummary>(`/api/contracts/${id}`);
+
+export async function createContract(file: File, title: string, contractType = "vendor", contractNumber?: string) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("title", title);
+  formData.append("contract_type", contractType);
+  if (contractNumber) formData.append("contract_number", contractNumber);
+
+  const res = await fetch(`${API_BASE}/api/contracts`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json();
+}
+
+export const updateContract = (id: string, body: Record<string, unknown>) =>
+  fetchApi<import("@/types").ContractSummary>(`/api/contracts/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+
+export const transitionContractStatus = (id: string, newStatus: string) =>
+  fetchApi<{ contract_id: string; new_status: string }>(
+    `/api/contracts/${id}/status`,
+    { method: "POST", body: JSON.stringify({ new_status: newStatus }) }
+  );
+
+export const getContractClauses = (id: string) =>
+  fetchApi<{ contract_id: string; clauses: import("@/types").ContractClauseItem[] }>(
+    `/api/contracts/${id}/clauses`
+  );
+
+export const getContractRisk = (id: string) =>
+  fetchApi<{ contract_id: string; risk_level: string; risk_score: number | null }>(
+    `/api/contracts/${id}/risk`
+  );
+
+// Obligations
+export const getObligations = (contractId?: string, status?: string, limit = 50) =>
+  fetchApi<{ obligations: import("@/types").ObligationSummary[]; total: number }>(
+    `/api/obligations?limit=${limit}${contractId ? `&contract_id=${contractId}` : ""}${status ? `&status=${status}` : ""}`
+  );
+
+export const getUpcomingObligations = (days = 30) =>
+  fetchApi<{ upcoming: import("@/types").ObligationSummary[]; total: number }>(
+    `/api/obligations/upcoming?days=${days}`
+  );
+
+export const fulfillObligation = (id: string, fulfilledBy: string, evidenceUri?: string) =>
+  fetchApi<{ obligation_id: string; status: string }>(
+    `/api/obligations/${id}/fulfill`,
+    { method: "POST", body: JSON.stringify({ fulfilled_by: fulfilledBy, evidence_gcs_uri: evidenceUri }) }
+  );
+
+// Drafting
+export const getDraftTemplates = (contractType?: string) =>
+  fetchApi<{ templates: import("@/types").ContractTemplate[]; total: number }>(
+    `/api/drafting/templates${contractType ? `?contract_type=${contractType}` : ""}`
+  );
+
+export const getClauseLibrary = (contractType?: string, category?: string) =>
+  fetchApi<{ clauses: import("@/types").ClauseLibraryItem[]; total: number }>(
+    `/api/drafting/clause-library?${contractType ? `contract_type=${contractType}&` : ""}${category ? `category=${category}` : ""}`
+  );
+
 // Analytics
 export const getScoreTrends = (months = 12) =>
   fetchApi<{ trends: import("@/types").ScoreTrendPoint[]; period_type: string }>(
