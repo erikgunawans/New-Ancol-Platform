@@ -1,0 +1,191 @@
+"""Gemini Agent Builder webhook — routes tool calls to the Ancol MoM Compliance pipeline."""
+
+from __future__ import annotations
+
+import logging
+import os
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="Ancol Gemini Agent Webhook",
+    version="0.1.0",
+)
+
+# Role → allowed tool names
+ROLE_TOOL_ACCESS: dict[str, set[str]] = {
+    "corp_secretary": {
+        "upload_document",
+        "check_status",
+        "review_gate",
+        "get_review_detail",
+        "submit_decision",
+        "get_report",
+    },
+    "internal_auditor": {
+        "review_gate",
+        "get_review_detail",
+        "submit_decision",
+        "get_report",
+        "get_dashboard",
+        "check_status",
+    },
+    "komisaris": {
+        "get_report",
+        "get_dashboard",
+        "search_regulations",
+        "check_status",
+    },
+    "legal_compliance": {
+        "review_gate",
+        "get_review_detail",
+        "submit_decision",
+        "search_regulations",
+        "check_status",
+        "get_report",
+    },
+    "admin": {
+        "upload_document",
+        "review_gate",
+        "get_review_detail",
+        "submit_decision",
+        "check_status",
+        "get_report",
+        "search_regulations",
+        "get_dashboard",
+    },
+}
+
+
+def _get_api_client():
+    """Lazy import to avoid circular imports during testing."""
+    from gemini_agent.api_client import ApiClient
+
+    return ApiClient(
+        base_url=os.getenv("API_GATEWAY_URL", "http://localhost:8080"),
+        environment=os.getenv("ENVIRONMENT", "dev"),
+    )
+
+
+async def _dispatch_tool(
+    tool_name: str,
+    params: dict,
+    user: dict,
+) -> str:
+    """Route a tool call to the appropriate handler."""
+    api = _get_api_client()
+
+    if tool_name == "upload_document":
+        from gemini_agent.tools.upload import handle_upload_document
+
+        return await handle_upload_document(params, api, user)
+
+    if tool_name == "review_gate":
+        from gemini_agent.tools.review import handle_review_gate
+
+        return await handle_review_gate(params, api, user)
+
+    if tool_name == "get_review_detail":
+        from gemini_agent.tools.review import handle_get_review_detail
+
+        return await handle_get_review_detail(params, api, user)
+
+    if tool_name == "submit_decision":
+        from gemini_agent.tools.review import handle_submit_decision
+
+        return await handle_submit_decision(params, api, user)
+
+    if tool_name == "check_status":
+        from gemini_agent.tools.status import handle_check_status
+
+        return await handle_check_status(params, api, user)
+
+    if tool_name == "get_report":
+        from gemini_agent.tools.reports import handle_get_report
+
+        return await handle_get_report(params, api, user)
+
+    if tool_name == "search_regulations":
+        from gemini_agent.tools.regulations import (
+            handle_search_regulations,
+        )
+
+        return await handle_search_regulations(params, api, user)
+
+    if tool_name == "get_dashboard":
+        from gemini_agent.tools.dashboard import handle_get_dashboard
+
+        return await handle_get_dashboard(params, api, user)
+
+    raise ValueError(f"Unknown tool: {tool_name}")
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "service": "gemini-agent",
+        "version": "0.1.0",
+    }
+
+
+@app.post("/webhook")
+async def webhook(request: Request):
+    """Handle incoming tool calls from Vertex AI Agent Builder."""
+    body = await request.json()
+
+    tool_call = body.get("tool_call", {})
+    tool_name = tool_call.get("name", "")
+    params = tool_call.get("parameters", {})
+
+    user = body.get("user_identity", {})
+    user_role = user.get("role", "")
+
+    # Validate role-based access
+    allowed = ROLE_TOOL_ACCESS.get(user_role, set())
+    if tool_name not in allowed:
+        logger.warning(
+            "Access denied: role=%s tool=%s", user_role, tool_name
+        )
+        return JSONResponse(
+            content={
+                "tool_response": {
+                    "name": tool_name,
+                    "content": (
+                        "Maaf, Anda tidak memiliki akses untuk "
+                        f"fungsi '{tool_name}' dengan peran "
+                        f"'{user_role}'."
+                    ),
+                }
+            },
+            status_code=200,
+        )
+
+    try:
+        result = await _dispatch_tool(tool_name, params, user)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("Tool execution failed: %s", tool_name)
+        return JSONResponse(
+            content={
+                "tool_response": {
+                    "name": tool_name,
+                    "content": (
+                        "Terjadi kesalahan saat memproses permintaan. "
+                        "Silakan coba lagi."
+                    ),
+                }
+            },
+            status_code=200,
+        )
+
+    return {
+        "tool_response": {
+            "name": tool_name,
+            "content": result,
+        }
+    }
