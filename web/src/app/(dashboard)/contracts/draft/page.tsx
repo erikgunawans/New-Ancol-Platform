@@ -130,7 +130,7 @@ export default function DraftGeneratorPage() {
       const res = await generateDraftPdf(data);
       const blob = new Blob([res.html], { type: "text/html" });
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal membuat PDF");

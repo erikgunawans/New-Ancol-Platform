@@ -106,7 +106,7 @@ def _risk_badge(risk_level: RiskLevel | None) -> str:
     if risk_level is None:
         return ""
     label = escape(RISK_LABELS.get(risk_level.value, risk_level.value.upper()))
-    css_class = f"badge badge-{risk_level.value}"
+    css_class = f"badge badge-{escape(risk_level.value)}"
     return f'<span class="{css_class}">{label}</span>'
 
 
