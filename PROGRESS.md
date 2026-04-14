@@ -2,7 +2,7 @@
 
 ## Current State (as of 2026-04-15)
 
-**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-3 COMPLETE.** ~400 source files, 264 unit tests passing across 9 services, 21 ORM tables. MoM compliance + full Contract Lifecycle Management (extraction, drafting, Q&A RAG, obligation auto-extraction). RBAC enforced on all 46 API endpoints. 3-layer hybrid RAG for contracts. 11 Cloud Run services, 14 frontend routes, 17 Terraform modules.
+**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-3 + CLM PHASE 4 (PDF + Frontend) COMPLETE.** ~410 source files, 277 unit tests passing across 9 services, 21 ORM tables. MoM compliance + full Contract Lifecycle Management (extraction, drafting, Q&A RAG, obligation auto-extraction, PDF generation, frontend detail + draft pages). RBAC enforced on all 47 API endpoints. 3-layer hybrid RAG for contracts. 11 Cloud Run services, 16 frontend routes, 17 Terraform modules.
 
 **Repository:** https://github.com/erikgunawans/New-Ancol-Platform (standalone repo)
 
@@ -14,8 +14,9 @@
 | **Phase 4: Batch + Scale** | 13-16 | **COMPLETE** | +23 | 18 |
 | **Phase 5: Integration** | 17-20 | **COMPLETE** | +35 | 38 |
 | **CLM Phase 1** | 1-8 | **COMPLETE** | +45 | 52 |
+| **CLM Phase 4: PDF + Frontend** | — | **COMPLETE** | +8 | 13 |
 
-**System is deployment-ready with Gemini Enterprise as primary interface.** MoM compliance + CLM (contracts, obligations, drafting) on shared infrastructure. Hybrid RAG with Spanner Graph. Next.js PWA frontend with 14 routes (grouped sidebar: MoM / Contracts / Admin).
+**System is deployment-ready with Gemini Enterprise as primary interface.** MoM compliance + CLM (contracts, obligations, drafting, PDF export) on shared infrastructure. Hybrid RAG with Spanner Graph. Next.js PWA frontend with 16 routes (grouped sidebar: MoM / Contracts / Admin).
 
 ---
 
