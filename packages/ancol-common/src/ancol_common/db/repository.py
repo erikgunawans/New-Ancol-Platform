@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -587,8 +588,6 @@ async def store_contract_extraction(
     # Insert obligation records from extraction
     if obligations:
         for ob in obligations:
-            import contextlib
-
             due = None
             if ob.get("due_date"):
                 with contextlib.suppress(ValueError, TypeError):
