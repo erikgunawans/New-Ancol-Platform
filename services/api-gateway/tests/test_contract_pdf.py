@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
+import pytest
 from ancol_common.schemas.contract import ContractClause, ContractParty, RiskLevel
 from ancol_common.schemas.drafting import DraftOutput, DraftRequest
 
@@ -213,6 +216,95 @@ class TestGenerateContractHtml:
         assert "&lt;script&gt;" in html
         assert '<img onerror' not in html
         assert "&lt;img onerror" in html
+
+
+class TestDraftPdfEndpoint:
+    """Test the POST /api/drafting/pdf endpoint."""
+
+    @pytest.fixture
+    def mock_deps(self):
+        """Patch get_session, assemble_draft, and auth for endpoint tests."""
+        import inspect
+
+        from api_gateway.main import app
+        from api_gateway.routers.drafting import router
+
+        mock_session = AsyncMock()
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        mock_output = _make_output(contract_id="contract-pdf-001")
+
+        # Override RBAC dependencies for all drafting routes
+        auth_deps = []
+        for route in router.routes:
+            if hasattr(route, "endpoint"):
+                sig = inspect.signature(route.endpoint)
+                for name, param in sig.parameters.items():
+                    if name == "_auth" and hasattr(param.default, "dependency"):
+                        dep_fn = param.default.dependency
+                        app.dependency_overrides[dep_fn] = lambda: {
+                            "email": "test@ancol.co.id",
+                            "id": "dev-test",
+                        }
+                        auth_deps.append(dep_fn)
+
+        with (
+            patch(
+                "api_gateway.routers.drafting.get_session",
+                return_value=mock_ctx,
+            ),
+            patch(
+                "ancol_common.drafting.engine.assemble_draft",
+                new_callable=AsyncMock,
+                return_value=mock_output,
+            ),
+        ):
+            yield {"output": mock_output}
+
+        # Clean up dependency overrides
+        for dep_fn in auth_deps:
+            app.dependency_overrides.pop(dep_fn, None)
+
+    @pytest.mark.asyncio
+    async def test_pdf_endpoint_returns_html(self, mock_deps):
+        """POST /api/drafting/pdf should return 200 with styled HTML."""
+        from api_gateway.main import app
+        from httpx import ASGITransport, AsyncClient
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/drafting/pdf",
+                json={
+                    "contract_type": "vendor",
+                    "parties": [
+                        {"name": "PT Ancol Tbk", "role": "principal", "entity_type": "internal"},
+                        {"name": "PT Mitra", "role": "counterparty", "entity_type": "external"},
+                    ],
+                    "key_terms": {"value": "Rp 1.000.000"},
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "html" in data
+        assert "<!DOCTYPE html>" in data["html"]
+
+    @pytest.mark.asyncio
+    async def test_pdf_endpoint_includes_contract_id(self, mock_deps):
+        """POST /api/drafting/pdf should return the contract_id from the draft."""
+        from api_gateway.main import app
+        from httpx import ASGITransport, AsyncClient
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post("/api/drafting/pdf", json={})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["contract_id"] == "contract-pdf-001"
 
 
 class TestRenderContractPdf:
