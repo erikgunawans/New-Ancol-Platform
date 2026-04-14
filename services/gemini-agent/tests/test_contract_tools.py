@@ -24,66 +24,112 @@ def _mock_user():
 
 def _mock_api():
     api = AsyncMock()
-    api.upload_contract = AsyncMock(return_value={
-        "id": "c-001", "title": "NDA PT XYZ", "status": "draft",
-        "contract_type": "nda", "contract_number": None,
-        "effective_date": None, "expiry_date": None,
-        "total_value": None, "currency": "IDR",
-        "risk_level": None, "risk_score": None,
-        "page_count": None, "created_at": "2026-04-14", "updated_at": "2026-04-14",
-    })
-    api.get_contract = AsyncMock(return_value={
-        "id": "c-001", "title": "NDA PT XYZ", "status": "active",
-        "contract_type": "nda", "contract_number": "NDA-2026-001",
-        "effective_date": "2026-01-01", "expiry_date": "2027-01-01",
-        "total_value": 500000000, "currency": "IDR",
-        "risk_level": "low", "risk_score": 25.0,
-        "page_count": 12, "created_at": "2026-01-01", "updated_at": "2026-04-14",
-    })
-    api.list_contracts = AsyncMock(return_value={
-        "contracts": [
-            {"id": "c-001", "title": "NDA PT XYZ", "status": "active", "contract_type": "nda"},
-            {
-                "id": "c-002", "title": "Sewa Tanah Ancol",
-                "status": "expiring", "contract_type": "land_lease",
-            },
-        ],
-        "total": 2,
-    })
-    api.get_contract_clauses = AsyncMock(return_value={
-        "contract_id": "c-001", "clauses": [],
-    })
-    api.get_contract_risk = AsyncMock(return_value={
-        "contract_id": "c-001", "risk_level": "low", "risk_score": 25.0,
-        "extraction_data": {},
-    })
-    api.list_obligations = AsyncMock(return_value={
-        "obligations": [
-            {
-                "id": "ob-001", "contract_id": "c-001",
-                "obligation_type": "renewal", "description": "Perpanjangan NDA",
-                "due_date": "2026-12-01", "status": "upcoming",
-                "responsible_party_name": "Legal",
-            },
-        ],
-        "total": 1,
-    })
-    api.get_upcoming_obligations = AsyncMock(return_value={
-        "upcoming": [], "total": 0, "within_days": 30,
-    })
-    api.fulfill_obligation = AsyncMock(return_value={
-        "obligation_id": "ob-001", "status": "fulfilled",
-    })
-    api.generate_draft = AsyncMock(return_value={
-        "status": "stub",
-        "message": "Draft generation will be powered by Gemini in Phase 2.",
-        "contract_type": "vendor",
-        "key_terms": {},
-    })
+    api.upload_contract = AsyncMock(
+        return_value={
+            "id": "c-001",
+            "title": "NDA PT XYZ",
+            "status": "draft",
+            "contract_type": "nda",
+            "contract_number": None,
+            "effective_date": None,
+            "expiry_date": None,
+            "total_value": None,
+            "currency": "IDR",
+            "risk_level": None,
+            "risk_score": None,
+            "page_count": None,
+            "created_at": "2026-04-14",
+            "updated_at": "2026-04-14",
+        }
+    )
+    api.get_contract = AsyncMock(
+        return_value={
+            "id": "c-001",
+            "title": "NDA PT XYZ",
+            "status": "active",
+            "contract_type": "nda",
+            "contract_number": "NDA-2026-001",
+            "effective_date": "2026-01-01",
+            "expiry_date": "2027-01-01",
+            "total_value": 500000000,
+            "currency": "IDR",
+            "risk_level": "low",
+            "risk_score": 25.0,
+            "page_count": 12,
+            "created_at": "2026-01-01",
+            "updated_at": "2026-04-14",
+        }
+    )
+    api.list_contracts = AsyncMock(
+        return_value={
+            "contracts": [
+                {"id": "c-001", "title": "NDA PT XYZ", "status": "active", "contract_type": "nda"},
+                {
+                    "id": "c-002",
+                    "title": "Sewa Tanah Ancol",
+                    "status": "expiring",
+                    "contract_type": "land_lease",
+                },
+            ],
+            "total": 2,
+        }
+    )
+    api.get_contract_clauses = AsyncMock(
+        return_value={
+            "contract_id": "c-001",
+            "clauses": [],
+        }
+    )
+    api.get_contract_risk = AsyncMock(
+        return_value={
+            "contract_id": "c-001",
+            "risk_level": "low",
+            "risk_score": 25.0,
+            "extraction_data": {},
+        }
+    )
+    api.list_obligations = AsyncMock(
+        return_value={
+            "obligations": [
+                {
+                    "id": "ob-001",
+                    "contract_id": "c-001",
+                    "obligation_type": "renewal",
+                    "description": "Perpanjangan NDA",
+                    "due_date": "2026-12-01",
+                    "status": "upcoming",
+                    "responsible_party_name": "Legal",
+                },
+            ],
+            "total": 1,
+        }
+    )
+    api.get_upcoming_obligations = AsyncMock(
+        return_value={
+            "upcoming": [],
+            "total": 0,
+            "within_days": 30,
+        }
+    )
+    api.fulfill_obligation = AsyncMock(
+        return_value={
+            "obligation_id": "ob-001",
+            "status": "fulfilled",
+        }
+    )
+    api.generate_draft = AsyncMock(
+        return_value={
+            "status": "stub",
+            "message": "Draft generation will be powered by Gemini in Phase 2.",
+            "contract_type": "vendor",
+            "key_terms": {},
+        }
+    )
     return api
 
 
 # -- Upload contract --
+
 
 @pytest.mark.asyncio
 async def test_upload_contract_no_file():
@@ -107,6 +153,7 @@ async def test_upload_contract_success():
 
 # -- Check contract status --
 
+
 @pytest.mark.asyncio
 async def test_check_contract_status_no_id():
     result = await handle_check_contract_status({}, _mock_api(), _mock_user())
@@ -116,14 +163,13 @@ async def test_check_contract_status_no_id():
 @pytest.mark.asyncio
 async def test_check_contract_status_success():
     api = _mock_api()
-    result = await handle_check_contract_status(
-        {"contract_id": "c-001"}, api, _mock_user()
-    )
+    result = await handle_check_contract_status({"contract_id": "c-001"}, api, _mock_user())
     assert "NDA PT XYZ" in result
     assert "Aktif" in result
 
 
 # -- Portfolio --
+
 
 @pytest.mark.asyncio
 async def test_get_contract_portfolio():
@@ -134,6 +180,7 @@ async def test_get_contract_portfolio():
 
 
 # -- Obligations --
+
 
 @pytest.mark.asyncio
 async def test_list_obligations():
@@ -146,9 +193,7 @@ async def test_list_obligations():
 @pytest.mark.asyncio
 async def test_list_obligations_upcoming():
     api = _mock_api()
-    result = await handle_list_obligations(
-        {"upcoming_only": True}, api, _mock_user()
-    )
+    result = await handle_list_obligations({"upcoming_only": True}, api, _mock_user())
     assert "Tidak ada kewajiban" in result
 
 
@@ -161,13 +206,12 @@ async def test_fulfill_obligation_no_id():
 @pytest.mark.asyncio
 async def test_fulfill_obligation_success():
     api = _mock_api()
-    result = await handle_fulfill_obligation(
-        {"obligation_id": "ob-001"}, api, _mock_user()
-    )
+    result = await handle_fulfill_obligation({"obligation_id": "ob-001"}, api, _mock_user())
     assert "terpenuhi" in result
 
 
 # -- Drafting --
+
 
 @pytest.mark.asyncio
 async def test_generate_draft_stub():
@@ -180,6 +224,7 @@ async def test_generate_draft_stub():
 
 # -- Contract Q&A --
 
+
 @pytest.mark.asyncio
 async def test_ask_contract_question_no_question():
     result = await handle_ask_contract_question({}, _mock_api(), _mock_user())
@@ -187,20 +232,51 @@ async def test_ask_contract_question_no_question():
 
 
 @pytest.mark.asyncio
-async def test_ask_contract_question_stub():
-    api = _mock_api()
-    result = await handle_ask_contract_question(
-        {"question": "Kapan kontrak NDA berakhir?"}, api, _mock_user()
-    )
-    assert "Phase 2" in result
-    assert "Kapan kontrak NDA berakhir?" in result
+async def test_ask_contract_question_returns_answer():
+    from unittest.mock import patch
+
+    mock_result = {
+        "answer": "Kontrak NDA berakhir pada 2027-12-31.",
+        "citations": [],
+        "regulations": [],
+        "related_contracts": [],
+    }
+    with patch(
+        "gemini_agent.tools.contract_qa.answer_contract_question",
+        return_value=mock_result,
+    ):
+        api = _mock_api()
+        result = await handle_ask_contract_question(
+            {"question": "Kapan kontrak NDA berakhir?"}, api, _mock_user()
+        )
+        assert "Jawaban" in result
 
 
 @pytest.mark.asyncio
-async def test_ask_contract_question_with_context():
-    api = _mock_api()
-    result = await handle_ask_contract_question(
-        {"question": "Apa risiko kontrak ini?", "contract_id": "c-001"},
-        api, _mock_user(),
-    )
-    assert "NDA PT XYZ" in result
+async def test_ask_contract_question_with_contract_id():
+    from unittest.mock import patch
+
+    mock_result = {
+        "answer": "Risiko kontrak ini medium.",
+        "citations": [
+            {
+                "contract_title": "NDA PT XYZ",
+                "clause_number": "Pasal 5",
+                "text_excerpt": "tanggung jawab",
+                "risk_level": "medium",
+            }
+        ],
+        "regulations": [],
+        "related_contracts": [],
+    }
+    with patch(
+        "gemini_agent.tools.contract_qa.answer_contract_question",
+        return_value=mock_result,
+    ):
+        api = _mock_api()
+        result = await handle_ask_contract_question(
+            {"question": "Apa risiko kontrak ini?", "contract_id": "c-001"},
+            api,
+            _mock_user(),
+        )
+        assert "NDA PT XYZ" in result

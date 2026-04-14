@@ -52,6 +52,16 @@ class CrossReference:
     reference_type: str
 
 
+@dataclass
+class ContractNode:
+    """A contract vertex in the knowledge graph."""
+
+    id: str
+    title: str
+    contract_type: str
+    status: str
+
+
 class GraphClient(ABC):
     """Abstract base for regulation knowledge graph backends.
 
@@ -78,3 +88,13 @@ class GraphClient(ABC):
     @abstractmethod
     async def check_active_status(self, regulation_id: str) -> bool:
         """Check if a regulation is still active (not superseded)."""
+
+    @abstractmethod
+    async def get_related_regulations_for_contract(
+        self, contract_id: str,
+    ) -> list[RegulationNode]:
+        """Return regulations linked to a contract via graph edges."""
+
+    @abstractmethod
+    async def get_related_contracts(self, contract_id: str) -> list[ContractNode]:
+        """Return contracts in the amendment/renewal chain."""

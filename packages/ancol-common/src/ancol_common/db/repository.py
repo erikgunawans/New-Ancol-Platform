@@ -524,8 +524,9 @@ async def store_contract_extraction(
     key_dates: dict,
     financial_terms: dict,
     risk_summary: dict,
+    obligations: list[dict] | None = None,
 ) -> None:
-    """Store contract extraction results: clauses, parties, and metadata updates."""
+    """Store contract extraction results: clauses, parties, obligations, and metadata."""
     cid = uuid.UUID(contract_id)
 
     # Insert clause records
@@ -582,6 +583,26 @@ async def store_contract_extraction(
             contract.risk_score = risk_score
 
         contract.updated_at = datetime.now(UTC)
+
+    # Insert obligation records from extraction
+    if obligations:
+        for ob in obligations:
+            import contextlib
+
+            due = None
+            if ob.get("due_date"):
+                with contextlib.suppress(ValueError, TypeError):
+                    due = date.fromisoformat(ob["due_date"])
+            record = ObligationRecord(
+                contract_id=cid,
+                obligation_type=ob.get("obligation_type", "deliverable"),
+                description=ob.get("description", ""),
+                due_date=due or date.today(),
+                recurrence=ob.get("recurrence"),
+                responsible_party_name=ob.get("responsible_party", ""),
+                status="upcoming",
+            )
+            session.add(record)
 
 
 # ── Clause Library Queries ──

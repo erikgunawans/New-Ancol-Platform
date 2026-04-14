@@ -605,3 +605,50 @@ def format_regulation_result(data: dict) -> str:
             lines.append(f"- {c}")
 
     return "\n".join(lines).strip()
+
+
+def format_contract_qa_response(result: dict) -> str:
+    """Format a contract Q&A RAG response for Gemini chat."""
+    lines: list[str] = []
+
+    # Answer
+    answer = result.get("answer", "Tidak ada jawaban tersedia.")
+    lines.append(f"**Jawaban:**\n{answer}")
+
+    # Citations
+    qa_citations = result.get("citations", [])
+    if qa_citations:
+        lines.append("\n**Sumber:**")
+        for c in qa_citations:
+            title = c.get("contract_title", "-")
+            clause = c.get("clause_number", "-")
+            excerpt = c.get("text_excerpt", "")
+            risk = c.get("risk_level", "-")
+            lines.append(f'- {title}, {clause}: "{excerpt}" (risiko: {risk})')
+
+    # Regulations
+    regulations = result.get("regulations", [])
+    if regulations:
+        lines.append("\n**Regulasi Terkait:**")
+        seen: set[str] = set()
+        for r in regulations:
+            rid = r.get("regulation_id", "")
+            if rid and rid not in seen:
+                seen.add(rid)
+                rtitle = r.get("title", "")
+                lines.append(f"- {rid}: {rtitle}")
+
+    # Related contracts
+    related = result.get("related_contracts", [])
+    if related:
+        lines.append("\n**Kontrak Terkait:**")
+        seen_rc: set[str] = set()
+        for rc in related:
+            rcid = rc.get("id", "")
+            if rcid and rcid not in seen_rc:
+                seen_rc.add(rcid)
+                rctitle = rc.get("title", "-")
+                ctype = rc.get("contract_type", "-")
+                lines.append(f"- {rctitle} ({ctype})")
+
+    return "\n".join(lines).strip()

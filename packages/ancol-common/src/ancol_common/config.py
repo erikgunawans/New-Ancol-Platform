@@ -40,6 +40,11 @@ class Settings(BaseModel):
         "projects/ancol-mom-compliance/locations/asia-southeast2/"
         "collections/default_collection/dataStores/regulatory-corpus",
     )
+    vertex_search_contracts_datastore: str = os.getenv(
+        "VERTEX_SEARCH_CONTRACTS_DATASTORE",
+        "projects/ancol-mom-compliance/locations/asia-southeast2/"
+        "collections/default_collection/dataStores/ancol-contract-clauses",
+    )
 
     # Document AI
     document_ai_processor: str = os.getenv("DOCUMENT_AI_PROCESSOR", "")

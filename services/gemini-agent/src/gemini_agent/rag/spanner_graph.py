@@ -13,6 +13,7 @@ from google.cloud import spanner
 
 from .graph_client import (
     AmendmentEdge,
+    ContractNode,
     CrossReference,
     GraphClient,
     RegulationNode,
@@ -187,3 +188,53 @@ class SpannerGraphClient(GraphClient):
 
         row = rows[0]
         return row["status"] == "active" and int(row["supersede_count"]) == 0
+
+    async def get_related_regulations_for_contract(
+        self, contract_id: str,
+    ) -> list[RegulationNode]:
+        """Return regulations linked to a contract via GOVERNED_BY edges."""
+        gql = """
+            MATCH (c:Contract)-[:GOVERNED_BY]->(r:Regulation)
+            WHERE c.id = @contract_id
+            RETURN r.id AS id, r.title AS title, r.issuer AS issuer,
+                   r.effective_date AS effective_date, r.status AS status,
+                   r.authority_level AS authority_level
+        """
+        params = {"contract_id": contract_id}
+        param_types = {"contract_id": spanner.param_types.STRING}
+        rows = self._execute_gql(gql, params, param_types)
+
+        return [
+            RegulationNode(
+                id=row["id"],
+                title=row.get("title", ""),
+                issuer=row.get("issuer", ""),
+                effective_date=row.get("effective_date", ""),
+                status=row.get("status", "active"),
+                authority_level=int(row.get("authority_level", 1)),
+            )
+            for row in rows
+        ]
+
+    async def get_related_contracts(self, contract_id: str) -> list[ContractNode]:
+        """Return contracts in the amendment/renewal chain (up to 3 hops)."""
+        gql = """
+            MATCH (c:Contract)-[:AMENDS|RENEWS*1..3]->(related:Contract)
+            WHERE c.id = @contract_id
+            RETURN related.id AS id, related.title AS title,
+                   related.contract_type AS contract_type,
+                   related.status AS status
+        """
+        params = {"contract_id": contract_id}
+        param_types = {"contract_id": spanner.param_types.STRING}
+        rows = self._execute_gql(gql, params, param_types)
+
+        return [
+            ContractNode(
+                id=row["id"],
+                title=row.get("title", ""),
+                contract_type=row.get("contract_type", ""),
+                status=row.get("status", ""),
+            )
+            for row in rows
+        ]

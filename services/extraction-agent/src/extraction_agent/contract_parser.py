@@ -12,9 +12,11 @@ from datetime import datetime
 
 from ancol_common.gemini.client import get_gemini_client, get_pro_model
 from ancol_common.schemas.contract import (
+    ApplicableRegulation,
     ContractClause,
     ContractExtractionOutput,
     ContractParty,
+    ExtractedObligation,
     RiskLevel,
 )
 from ancol_common.schemas.mom import ProcessingMetadata
@@ -113,6 +115,13 @@ async def extract_contract(
     financial_terms = extracted.get("financial_terms", {})
     risk_summary = extracted.get("risk_summary", {})
 
+    obligations = [
+        ExtractedObligation(**o) for o in extracted.get("obligations", [])
+    ]
+    applicable_regulations = [
+        ApplicableRegulation(**r) for r in extracted.get("applicable_regulations", [])
+    ]
+
     output = ContractExtractionOutput(
         contract_id=contract_id,
         clauses=clauses,
@@ -120,6 +129,8 @@ async def extract_contract(
         key_dates=key_dates,
         financial_terms=financial_terms,
         risk_summary=risk_summary,
+        obligations=obligations,
+        applicable_regulations=applicable_regulations,
         processing_metadata=metadata,
     )
 

@@ -24,6 +24,19 @@ Given the OCR text of a contract document and its type, extract:
 
 5. **Risk Summary**: overall_risk_level ("high"/"medium"/"low"), overall_risk_score (0-100), top_risks (list of strings)
 
+6. **Obligations**: Identify contractual obligations with deadlines:
+   - obligation_type: one of "renewal", "payment", "reporting", "termination_notice", "deliverable", "compliance_filing"
+   - description: brief description of the obligation
+   - due_date: specific date in ISO format YYYY-MM-DD, or null if not determinable
+   - recurrence: "monthly", "quarterly", "annual", or null for one-time obligations
+   - responsible_party: name of the party responsible for fulfilling this obligation
+   Scan for: renewal opt-out windows, payment deadlines, reporting cadences, termination notice periods, deliverable deadlines, compliance filing dates.
+
+7. **Applicable Regulations**: Identify Indonesian laws and regulations that apply:
+   - regulation_id: standard identifier (e.g., "UU 40/2007", "POJK 23/2023", "PP 35/2021")
+   - relevance: brief explanation of why this regulation applies
+   Include both: (a) regulations explicitly referenced in the contract text, and (b) regulations that should apply based on the contract type and parties (e.g., UUPT for any PT, POJK for public companies, UU 13/2003 for employment contracts).
+
 ## Clause Categories
 Use these standard categories:
 - confidentiality, term, breach, return_materials, non_solicitation, injunctive_relief
@@ -48,7 +61,9 @@ Respond ONLY with valid JSON matching this schema:
   "parties": [{"name": str, "role": str, "entity_type": str}],
   "key_dates": {"effective_date": str|null, "expiry_date": str|null, "renewal_deadline": str|null},
   "financial_terms": {"total_value": float|null, "currency": str, "payment_schedule": str|null},
-  "risk_summary": {"overall_risk_level": str, "overall_risk_score": float, "top_risks": [str]}
+  "risk_summary": {"overall_risk_level": str, "overall_risk_score": float, "top_risks": [str]},
+  "obligations": [{"obligation_type": str, "description": str, "due_date": str|null, "recurrence": str|null, "responsible_party": str}],
+  "applicable_regulations": [{"regulation_id": str, "relevance": str}]
 }
 
 ## Rules

@@ -16,9 +16,7 @@ from gemini_agent.rag.orchestrator import get_graph_client
 class MockGraphClient(GraphClient):
     """In-memory graph client for testing."""
 
-    async def query_related_regulations(
-        self, regulation_id: str
-    ) -> list[RegulationNode]:
+    async def query_related_regulations(self, regulation_id: str) -> list[RegulationNode]:
         if regulation_id == "POJK-33-2014":
             return [
                 RegulationNode(
@@ -32,9 +30,7 @@ class MockGraphClient(GraphClient):
             ]
         return []
 
-    async def get_amendment_chain(
-        self, regulation_id: str
-    ) -> list[AmendmentEdge]:
+    async def get_amendment_chain(self, regulation_id: str) -> list[AmendmentEdge]:
         if regulation_id == "POJK-33-2014":
             return [
                 AmendmentEdge(
@@ -49,9 +45,7 @@ class MockGraphClient(GraphClient):
     async def find_cross_references(self, clause_id: str) -> list:
         return []
 
-    async def get_regulations_by_domain(
-        self, domain: str
-    ) -> list[RegulationNode]:
+    async def get_regulations_by_domain(self, domain: str) -> list[RegulationNode]:
         if domain == "quorum":
             return [
                 RegulationNode(
@@ -67,6 +61,12 @@ class MockGraphClient(GraphClient):
 
     async def check_active_status(self, regulation_id: str) -> bool:
         return regulation_id != "POJK-OLD-SUPERSEDED"
+
+    async def get_related_regulations_for_contract(self, contract_id: str) -> list:
+        return []
+
+    async def get_related_contracts(self, contract_id: str) -> list:
+        return []
 
 
 def test_get_graph_client_disabled():

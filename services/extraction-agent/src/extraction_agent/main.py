@@ -220,7 +220,37 @@ async def handle_contract_pubsub_push(request: Request):
                 key_dates=result.key_dates,
                 financial_terms=result.financial_terms,
                 risk_summary=result.risk_summary,
+                obligations=[o.model_dump(mode="json") for o in result.obligations],
             )
+
+        # Index clauses into Vertex AI Search (best-effort)
+        try:
+            from ancol_common.search.contract_indexer import index_contract_clauses
+
+            await index_contract_clauses(
+                contract_id=contract_id,
+                contract_title=payload.get("title", ""),
+                contract_type=contract_type,
+                clauses=[c.model_dump() for c in result.clauses],
+            )
+        except Exception:
+            logger.warning("Contract clause indexing failed", exc_info=True)
+
+        # Seed Spanner Graph (best-effort)
+        try:
+            from ancol_common.search.graph_seeder import seed_contract_graph
+
+            await seed_contract_graph(
+                contract_id=contract_id,
+                contract_title=payload.get("title", ""),
+                contract_type=contract_type,
+                parent_contract_id=payload.get("parent_contract_id"),
+                applicable_regulations=[
+                    r.model_dump() for r in result.applicable_regulations
+                ],
+            )
+        except Exception:
+            logger.warning("Contract graph seeding failed", exc_info=True)
 
         # Publish extraction complete event
         publish_message(

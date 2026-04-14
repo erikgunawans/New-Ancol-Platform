@@ -89,6 +89,23 @@ class ContractMetadata(BaseModel):
     updated_at: datetime | None = None
 
 
+class ExtractedObligation(BaseModel):
+    """An obligation identified during contract extraction."""
+
+    obligation_type: str  # renewal, payment, reporting, termination_notice, etc.
+    description: str
+    due_date: date | None = None
+    recurrence: str | None = None  # monthly, quarterly, annual
+    responsible_party: str
+
+
+class ApplicableRegulation(BaseModel):
+    """A regulation identified as applicable to a contract."""
+
+    regulation_id: str  # e.g. "UU 40/2007", "POJK 23/2023"
+    relevance: str
+
+
 class ContractExtractionOutput(BaseModel):
     """Output from Gemini extraction of a contract document."""
 
@@ -98,4 +115,6 @@ class ContractExtractionOutput(BaseModel):
     key_dates: dict = Field(default_factory=dict)
     financial_terms: dict = Field(default_factory=dict)
     risk_summary: dict = Field(default_factory=dict)
+    obligations: list[ExtractedObligation] = []
+    applicable_regulations: list[ApplicableRegulation] = []
     processing_metadata: ProcessingMetadata
