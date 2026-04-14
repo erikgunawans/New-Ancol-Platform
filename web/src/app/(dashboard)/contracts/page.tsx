@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getContracts } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import type { ContractSummary } from "@/types";
@@ -50,6 +51,7 @@ const RISK_COLORS: Record<string, string> = {
 };
 
 export default function ContractsPage() {
+  const router = useRouter();
   const [contracts, setContracts] = useState<ContractSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("");
@@ -120,7 +122,7 @@ export default function ContractsPage() {
               </tr>
             ) : (
               contracts.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
+                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/contracts/${c.id}`)}>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 max-w-xs truncate">
                     {c.title}
                   </td>
