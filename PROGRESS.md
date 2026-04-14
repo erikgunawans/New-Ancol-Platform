@@ -1,8 +1,8 @@
 # Ancol MoM Compliance System — Progress Tracker
 
-## Current State (as of 2026-04-12)
+## Current State (as of 2026-04-14)
 
-**ALL 5 PHASES + GEMINI AGENT COMPLETE.** ~330 source files, 149 unit tests passing across 9 services. Gemini Enterprise Agent Builder integration with hybrid RAG (Vertex AI Search + Spanner Graph + SQL). 11 Cloud Run services, Cloud Scheduler, Spanner Graph, and DR.
+**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-2 COMPLETE.** ~390 source files, 250 unit tests passing across 9 services, 21 ORM tables. MoM compliance + Contract Lifecycle Management with AI extraction and smart drafting. RBAC enforced on all 46 API endpoints. 11 Cloud Run services, 14 frontend routes, 16 Terraform modules.
 
 **Repository:** https://github.com/erikgunawans/New-Ancol-Platform (standalone repo)
 
@@ -13,8 +13,9 @@
 | **Phase 3: HITL + UI (MVP)** | 9-12 | **COMPLETE** | +25 | 0 (frontend) |
 | **Phase 4: Batch + Scale** | 13-16 | **COMPLETE** | +23 | 18 |
 | **Phase 5: Integration** | 17-20 | **COMPLETE** | +35 | 38 |
+| **CLM Phase 1** | 1-8 | **COMPLETE** | +45 | 52 |
 
-**System is deployment-ready with Gemini Enterprise as primary interface.** Users interact via Gemini chat (upload MoMs, review HITL gates, view reports). Hybrid RAG with Spanner Graph for regulation relationships. Next.js frontend retained as analytics companion.
+**System is deployment-ready with Gemini Enterprise as primary interface.** MoM compliance + CLM (contracts, obligations, drafting) on shared infrastructure. Hybrid RAG with Spanner Graph. Next.js PWA frontend with 14 routes (grouped sidebar: MoM / Contracts / Admin).
 
 ---
 
@@ -532,6 +533,64 @@ New-Ancol-Platform/                    (~295 files)
 - **All 120 tests passing** after all fixes
 - **Repo Separation**: Moved to standalone repo `github.com/erikgunawans/New-Ancol-Platform`. Removed from `new-shadow-ai-detector` repo, deleted stale branch, cleaned `.gitignore`
 
+### Session 15 — 2026-04-13/14
+
+**Scope:** CLM Phase 1 — Contract Lifecycle Management expansion (full Phase 1, Weeks 1-8)
+
+- **Planning**: CLM expansion plan created from PJAA survey findings (201-500 contracts, no centralized tracking). Strategy: extend existing services, don't create new ones. Budget: <$8.5K/year GCP.
+- **Data Model** (Week 1-2): 3 new schema files (contract.py, obligation.py, drafting.py), 6 new ORM tables (21 total), 10-state contract state machine, Alembic migration 002, 2 new user roles (contract_manager, business_dev) synced across 4 locations, 8 new RBAC permissions, 6 new config settings, WhatsApp + push notification channels
+- **API** (Week 3-4): 3 new API routers (contracts 8 endpoints, obligations 5 endpoints, drafting 5 endpoints = 18 total), registered in api-gateway main.py
+- **Frontend** (Week 3-4): 7 new TS types + interfaces, 12 new API client functions, 3 new pages (contracts, obligations, approve), grouped sidebar navigation (MoM/Contracts/Admin), route permissions for new roles
+- **Gemini Agent** (Week 5-6): 4 new tool handler files (8 tools: upload_contract, check_contract_status, get_contract_portfolio, get_contract_risk, list_obligations, fulfill_obligation, generate_draft, ask_contract_question), 12 new api_client methods, 6 new Bahasa Indonesia formatters
+- **WhatsApp** (Week 5-6): Notification module (Twilio-based) for obligation reminders and approval requests
+- **Terraform** (Week 7-8): 3 new Pub/Sub topics, 1 CMEK contracts bucket, 1 Cloud Scheduler job (obligation-check daily 07:00 WIB), IAM bindings, WhatsApp secret
+- **Tests** (Week 7-8): 52 new tests (201 total), CI `|| true` removal
+- **Reviews**: /simplify x3, /review (Claude adversarial, 30 findings), /codex review (5 findings). Fixed: path traversal, falsy-zero, over-privileged IAM, contract ID mismatch, Pub/Sub routing, scheduler URL
+- **PR #1**: Created and merged to main via squash merge (commit fd3b4f8)
+
+**Files created:** 45 new files across schemas, routers, tools, tests, Terraform, frontend pages
+**Files modified:** models.py, repository.py, config.py, rbac.py, gemini main.py, api_client.py, formatting.py, sidebar.tsx, types/index.ts, api.ts, auth.ts, pubsub/main.tf, storage/main.tf, scheduler/main.tf, security/main.tf, dev/main.tf, ci.yml, pyproject.toml
+**Tests:** 201 passing across 9 services. 0 lint errors. 14 frontend routes compiled. Terraform validates.
+
+---
+
+### Session 16 — 2026-04-14
+
+**Scope:** Phase 1 Gap Closure — RBAC Enforcement + Obligation Auto-Transition
+
+- **RBAC Enforcement**: Wired `require_permission()` from `auth/rbac.py` to all 46 API endpoints across 13 routers. Added `hitl:decide` union permission key (21 total permission keys). Every endpoint now checks `request.state.user_role` against `ROLE_PERMISSIONS` matrix.
+- **Obligation Auto-Transition**: New `check_obligation_deadlines()` function in `repository.py` with 4 phases: overdue transition (bulk UPDATE), due_soon transition, reminder flag updates (30/14/7 day windows), recurrence handling (monthly/quarterly/annual). Uses `sqlalchemy.update()` for bulk operations and `dateutil.relativedelta` for date math.
+- **New Endpoint**: `POST /api/obligations/check-deadlines` — Cloud Scheduler calls this daily at 07:00 WIB. Inserted before `/{obligation_id}` route to avoid path parameter capture.
+- **Scheduler Update**: Re-pointed `obligation_check` Terraform job from `GET /upcoming` to `POST /check-deadlines`.
+- **Auth**: Added `/api/obligations/check-deadlines` to `PUBLIC_PATHS` in middleware.py for scheduler OIDC access.
+- **WhatsApp deferred**: User model has no phone field — reminder flags are set but delivery is deferred until User model gets a phone column.
+- **Tests**: 31 new tests (69 total for api-gateway, 232 total across 9 services). RBAC tests cover permission matrix, dependency wiring, and all 13 router imports. Obligation tests cover overdue/due_soon transitions, reminder flags, recurrence creation, and idempotency.
+- **CLAUDE.md**: Added Plan Verification Protocol, updated test counts, added 2 new gotchas (RBAC per-endpoint, obligation bulk UPDATE).
+
+**Files modified:** `auth/rbac.py` (+hitl:decide), `auth/middleware.py` (+PUBLIC_PATHS), `db/repository.py` (+check_obligation_deadlines), `scheduler/main.tf`, 13 router files, `CLAUDE.md`, `PROGRESS.md`
+**Files created:** `test_rbac_enforcement.py` (23 tests), `test_obligation_transitions.py` (8 tests)
+**Tests:** 232 passing across 9 services. 0 lint errors.
+
+---
+
+### Session 17 — 2026-04-14
+
+**Scope:** CLM Phase 2 — Contract Extraction Pipeline + Smart Drafting Engine
+
+- **Design spec**: `docs/superpowers/specs/2026-04-14-clm-phase2-extraction-drafting-design.md` — scoped to extraction + drafting (Q&A → Phase 3)
+- **Contract Extraction**: Extended extraction-agent with `POST /extract-contract` endpoint. New `contract_parser.py` module uses Gemini 2.5 Pro for clause-level extraction with risk scoring (HIGH/MEDIUM/LOW). Stores `ContractClauseRecord` and `ContractPartyRecord` rows, updates `Contract.extraction_data` JSONB, risk_level, risk_score, dates, financial terms.
+- **Clause Library**: 58 bilingual (ID/EN) pre-approved clauses across 7 contract types in `corpus/data/clause_library.json`. 7 contract templates with required/optional clause mappings. Idempotent seed script `scripts/seed_clause_library.py`.
+- **Smart Drafting**: 3-phase assembly engine in `packages/ancol-common/src/ancol_common/drafting/engine.py`. Phase 1: template + clause library lookup. Phase 2: variable substitution (`{{party_principal}}`, `{{payment_days}}`, etc.). Phase 3: single Gemini Flash call for optional clause recommendations + consistency check. Minimal hallucination — clauses come from pre-approved library.
+- **Drafting Endpoint**: Replaced `POST /drafting/generate` stub with real implementation. Parses `DraftRequest`, calls `assemble_draft()`, returns full draft text + clauses + risk assessment.
+- **Repository**: 3 new functions: `store_contract_extraction()`, `get_clauses_for_template()`, `get_contract_template()`.
+- **Gemini Prompts**: 2 new prompt files — `contract_system.py` (extraction) and `drafting/prompts.py` (enhancement).
+
+**Files created:** 11 new files (parser, prompt, engine, corpus JSON, seed script, tests)
+**Files modified:** `repository.py`, `extraction-agent/main.py`, `routers/drafting.py`
+**Tests:** 250 passing across 9 services (+10 extraction, +8 drafting). 0 lint errors.
+
+---
+
 ### Session 14 — 2026-04-12
 
 **Scope:** Gemini Enterprise Agent Builder Integration — Hybrid RAG, webhook service, Spanner Graph
@@ -600,9 +659,10 @@ New-Ancol-Platform/                    (~295 files)
 | `PROGRESS.md` | This file — current state + resume guide |
 | `packages/ancol-common/src/ancol_common/schemas/mom.py` | Shared MoM schema — contract between all 4 agents |
 | `packages/ancol-common/src/ancol_common/utils.py` | Shared utilities — date parsing, format detection, GCS helpers, constants |
-| `packages/ancol-common/src/ancol_common/db/models.py` | 15 ORM tables — the data model |
-| `packages/ancol-common/src/ancol_common/db/repository.py` | Document state machine (14 states) |
-| `packages/ancol-common/src/ancol_common/config.py` | 31 environment settings |
+| `packages/ancol-common/src/ancol_common/schemas/contract.py` | Contract schemas — CLM data contract |
+| `packages/ancol-common/src/ancol_common/db/models.py` | 21 ORM tables — MoM + CLM data model |
+| `packages/ancol-common/src/ancol_common/db/repository.py` | Document + contract state machines |
+| `packages/ancol-common/src/ancol_common/config.py` | 40 environment settings |
 | `services/legal-research-agent/src/legal_research_agent/retrieval/citation_validator.py` | Anti-hallucination Layer 3 — most critical safety code |
 | `services/comparison-agent/src/comparison_agent/analyzers/red_flags.py` | 5 red flag detectors — core compliance value |
 | `services/reporting-agent/src/reporting_agent/generators/scorecard.py` | Three-pillar scoring (30/35/35) |

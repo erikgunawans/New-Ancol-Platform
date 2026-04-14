@@ -124,21 +124,21 @@ All agents share `packages/ancol-common/` which contains:
 
 ## Testing
 
-149 unit tests across 9 services (run locally). Each service tested individually:
-- extraction-agent: 9 tests (structural parser, endpoints)
+250 unit tests across 9 services (run locally). Each service tested individually:
+- extraction-agent: 19 tests (structural parser, contract clause extraction, risk scoring, endpoints)
 - legal-research-agent: 9 tests (citation validator, endpoints)
 - comparison-agent: 27 tests (5 red flag detectors, severity scoring)
 - reporting-agent: 16 tests (scorecard calc, PDF rendering)
-- api-gateway: 3 tests (health, API root, CORS)
+- api-gateway: 77 tests (health, CORS, RBAC enforcement, obligation transitions, drafting engine, contract state machine, schemas)
 - batch-engine: 18 tests (rate limiter, status transitions, schemas, health)
 - email-ingest: 24 tests (filename detection, MoM type, date extraction, content type, health)
 - regulation-monitor: 20 tests (sources, relevance filter, date parsing, endpoints)
-- gemini-agent: 23 tests (webhook routing, upload flow, HITL tools, RAG orchestrator, graph client, formatting)
+- gemini-agent: 40 tests (webhook routing, upload flow, HITL tools, RAG orchestrator, graph client, formatting, contract tools)
 - document-processor: 7 tests (requires `google-cloud-documentai` — runs in CI only)
 
 ## Current State
 
-**ALL 5 PHASES + GEMINI AGENT COMPLETE.** ~330 files, 149 tests locally (156 total incl. CI-only). Gemini Enterprise is the primary interface via Agent Builder. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
+**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-2 COMPLETE.** ~390 files, 250 tests locally (257 total incl. CI-only). RBAC enforced on all 46 API endpoints. Contract extraction pipeline + smart drafting engine. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
 
 ## Gotchas
 
@@ -155,3 +155,42 @@ All agents share `packages/ancol-common/` which contains:
 - **Gemini Agent uses API Gateway as proxy**: The webhook service never accesses Cloud SQL or GCS directly — all calls go through the existing API Gateway via `api_client.py`
 - **HITL is hybrid in Gemini chat**: Gate 1 is synchronous (agent polls until extraction completes, ~5 min max). Gates 2-4 are async (different roles, user initiates review via "Apa yang perlu direview?")
 - **Ruff must include `scripts/` directory**: Bulk upload and seed scripts live in `scripts/` and `corpus/scripts/` — include these paths when running `ruff check`
+- **RBAC is per-endpoint**: Every API endpoint uses `require_permission("key")` from `auth/rbac.py`. When adding new endpoints, always add the `_auth=require_permission("...")` parameter
+- **Obligation transitions are bulk UPDATE**: `check_obligation_deadlines()` in `repository.py` uses `sqlalchemy.update()` for status transitions, same pattern as `retroactive.py`
+
+## Plan Verification Protocol
+
+Every implementation plan MUST go through a verification loop before presenting to the user.
+
+### Step 1: Create the initial plan
+Write the plan as normal.
+
+### Step 2: Self-verify
+Before presenting, review the plan against these criteria:
+
+| Check | Question |
+|-------|----------|
+| Completeness | Does every requirement from the user have a corresponding action item? |
+| Correctness | Do the file paths, function names, and schemas match the actual codebase? |
+| Ordering | Are dependencies respected — does step N depend on something from step N+1? |
+| Side effects | Could any step break existing functionality? Have I checked the blast radius? |
+| Verification | Is there a concrete way to verify each step worked (test command, curl, visual check)? |
+| Existing code | Am I reusing existing utilities, or reinventing something that already exists? |
+
+Rate confidence: 0-100%.
+
+### Step 3: Loop if needed
+If confidence < 95%:
+1. List what's uncertain or weak
+2. Investigate (read files, grep patterns, check schemas)
+3. Update the plan with findings
+4. Re-rate confidence
+5. Repeat until confidence >= 95%
+
+### Step 4: Report
+Include at the bottom of every plan:
+```
+Confidence: XX%
+Verification passes: N
+[If any items were fixed: list what changed between passes]
+```
