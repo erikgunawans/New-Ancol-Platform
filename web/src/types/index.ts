@@ -256,3 +256,32 @@ export interface ScoreTrendPoint {
   avg_composite?: number;
   document_count: number;
 }
+
+// Draft generation types
+export interface DraftFormData {
+  contract_type: ContractType;
+  parties: Array<{
+    name: string;
+    role: "principal" | "counterparty" | "guarantor";
+    entity_type: "internal" | "external" | "related_party";
+    contact_email?: string;
+  }>;
+  key_terms: Record<string, string>;
+  clause_overrides?: Array<Record<string, string>>;
+  language?: "id" | "en";
+}
+
+export interface DraftResult {
+  contract_id: string;
+  draft_text: string;
+  clauses: ContractClauseItem[];
+  risk_assessment: Array<Record<string, string>>;
+  gcs_draft_uri?: string;
+}
+
+export interface DraftPdfResult {
+  contract_id: string;
+  html: string;
+  clauses: ContractClauseItem[];
+  risk_assessment: Array<Record<string, string>>;
+}
