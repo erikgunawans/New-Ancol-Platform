@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
+from dateutil.relativedelta import relativedelta
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ancol_common.db.models import (
     BatchItem,
     BatchJob,
+    ClauseLibrary,
     Contract,
+    ContractClauseRecord,
+    ContractPartyRecord,
     Document,
     ObligationRecord,
     User,
@@ -305,9 +309,7 @@ async def create_contract(
 
 async def get_contract_by_id(session: AsyncSession, contract_id: str) -> Contract | None:
     """Fetch a contract by ID."""
-    result = await session.execute(
-        select(Contract).where(Contract.id == uuid.UUID(contract_id))
-    )
+    result = await session.execute(select(Contract).where(Contract.id == uuid.UUID(contract_id)))
     return result.scalar_one_or_none()
 
 
@@ -396,3 +398,227 @@ async def fulfill_obligation(
         obligation.evidence_gcs_uri = evidence_gcs_uri
     obligation.updated_at = datetime.now(UTC)
     return True
+
+
+async def check_obligation_deadlines(session: AsyncSession) -> dict:
+    """Run obligation status transitions, set reminder flags, handle recurrences.
+
+    Called daily by Cloud Scheduler at 07:00 WIB.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    today = date.today()
+
+    # Phase 1: Overdue transition (must run before due_soon)
+    overdue_result = await session.execute(
+        update(ObligationRecord)
+        .where(
+            ObligationRecord.status.in_(["upcoming", "due_soon"]),
+            ObligationRecord.due_date <= today,
+        )
+        .values(status="overdue")
+    )
+    transitioned_overdue = overdue_result.rowcount
+
+    # Phase 2: Due-soon transition
+    due_soon_cutoff = today + timedelta(days=30)
+    due_soon_result = await session.execute(
+        update(ObligationRecord)
+        .where(
+            ObligationRecord.status == "upcoming",
+            ObligationRecord.due_date <= due_soon_cutoff,
+            ObligationRecord.due_date > today,
+        )
+        .values(status="due_soon")
+    )
+    transitioned_due_soon = due_soon_result.rowcount
+
+    # Phase 3: Reminder flags (log only — WhatsApp deferred until User model has phone field)
+    reminders_flagged = 0
+
+    for days_ahead, flag_col in [
+        (30, ObligationRecord.reminder_30d_sent),
+        (14, ObligationRecord.reminder_14d_sent),
+        (7, ObligationRecord.reminder_7d_sent),
+    ]:
+        cutoff = today + timedelta(days=days_ahead)
+        result = await session.execute(
+            update(ObligationRecord)
+            .where(
+                ObligationRecord.status.in_(["upcoming", "due_soon", "overdue"]),
+                ObligationRecord.due_date <= cutoff,
+                flag_col.is_(False),
+            )
+            .values({flag_col.key: True})
+        )
+        count = result.rowcount
+        if count:
+            logger.info("Obligation reminders: %d flagged at %d-day window", count, days_ahead)
+        reminders_flagged += count
+
+    # Phase 4: Recurrence handling
+    recurrences_created = 0
+    recurrence_result = await session.execute(
+        select(ObligationRecord).where(
+            ObligationRecord.status == "fulfilled",
+            ObligationRecord.recurrence.isnot(None),
+            ObligationRecord.next_due_date.is_(None),
+        )
+    )
+    fulfilled_recurring = recurrence_result.scalars().all()
+
+    for ob in fulfilled_recurring:
+        if ob.recurrence == "monthly":
+            next_date = ob.due_date + relativedelta(months=1)
+        elif ob.recurrence == "quarterly":
+            next_date = ob.due_date + relativedelta(months=3)
+        elif ob.recurrence == "annual":
+            next_date = ob.due_date + relativedelta(years=1)
+        else:
+            logger.warning("Unknown recurrence %r for obligation %s", ob.recurrence, ob.id)
+            continue
+
+        new_ob = ObligationRecord(
+            contract_id=ob.contract_id,
+            obligation_type=ob.obligation_type,
+            description=ob.description,
+            due_date=next_date,
+            recurrence=ob.recurrence,
+            responsible_user_id=ob.responsible_user_id,
+            responsible_party_name=ob.responsible_party_name,
+            status="upcoming",
+            reminder_30d_sent=False,
+            reminder_14d_sent=False,
+            reminder_7d_sent=False,
+        )
+        session.add(new_ob)
+        ob.next_due_date = next_date
+        recurrences_created += 1
+
+    logger.info(
+        "Obligation check: %d overdue, %d due_soon, %d reminders, %d recurrences",
+        transitioned_overdue,
+        transitioned_due_soon,
+        reminders_flagged,
+        recurrences_created,
+    )
+
+    return {
+        "transitioned_overdue": transitioned_overdue,
+        "transitioned_due_soon": transitioned_due_soon,
+        "reminders_flagged": reminders_flagged,
+        "recurrences_created": recurrences_created,
+    }
+
+
+# ── Contract Extraction ──
+
+
+async def store_contract_extraction(
+    session: AsyncSession,
+    contract_id: str,
+    extraction_data: dict,
+    clauses: list[dict],
+    parties: list[dict],
+    key_dates: dict,
+    financial_terms: dict,
+    risk_summary: dict,
+) -> None:
+    """Store contract extraction results: clauses, parties, and metadata updates."""
+    cid = uuid.UUID(contract_id)
+
+    # Insert clause records
+    for clause in clauses:
+        record = ContractClauseRecord(
+            contract_id=cid,
+            clause_number=clause.get("clause_number", ""),
+            title=clause.get("title", ""),
+            text=clause.get("text", ""),
+            category=clause.get("category"),
+            risk_level=clause.get("risk_level"),
+            risk_reason=clause.get("risk_reason"),
+            confidence=clause.get("confidence", 0.8),
+        )
+        session.add(record)
+
+    # Insert party records
+    for party in parties:
+        record = ContractPartyRecord(
+            contract_id=cid,
+            party_name=party.get("name", ""),
+            party_role=party.get("role", "counterparty"),
+            entity_type=party.get("entity_type", "external"),
+        )
+        session.add(record)
+
+    # Update contract metadata
+    contract = await session.get(Contract, cid)
+    if contract:
+        contract.extraction_data = extraction_data
+
+        # Key dates
+        eff = key_dates.get("effective_date")
+        exp = key_dates.get("expiry_date")
+        if eff:
+            contract.effective_date = date.fromisoformat(eff)
+        if exp:
+            contract.expiry_date = date.fromisoformat(exp)
+
+        # Financial terms
+        val = financial_terms.get("total_value")
+        cur = financial_terms.get("currency")
+        if val is not None:
+            contract.total_value = val
+        if cur:
+            contract.currency = cur
+
+        # Risk
+        risk_level = risk_summary.get("overall_risk_level")
+        risk_score = risk_summary.get("overall_risk_score")
+        if risk_level:
+            contract.risk_level = risk_level
+        if risk_score is not None:
+            contract.risk_score = risk_score
+
+        contract.updated_at = datetime.now(UTC)
+
+
+# ── Clause Library Queries ──
+
+
+async def get_clauses_for_template(
+    session: AsyncSession,
+    contract_type: str,
+    clause_categories: list[str],
+) -> list[ClauseLibrary]:
+    """Get active clause library entries for given categories."""
+    result = await session.execute(
+        select(ClauseLibrary)
+        .where(
+            ClauseLibrary.contract_type == contract_type,
+            ClauseLibrary.clause_category.in_(clause_categories),
+            ClauseLibrary.is_active.is_(True),
+        )
+        .order_by(ClauseLibrary.clause_category, ClauseLibrary.version.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_contract_template(
+    session: AsyncSession,
+    contract_type: str,
+):
+    """Get the latest active contract template for a type."""
+    from ancol_common.db.models import ContractTemplate
+
+    result = await session.execute(
+        select(ContractTemplate)
+        .where(
+            ContractTemplate.contract_type == contract_type,
+            ContractTemplate.is_active.is_(True),
+        )
+        .order_by(ContractTemplate.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()

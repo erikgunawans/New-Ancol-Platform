@@ -18,6 +18,7 @@ from ancol_common.schemas.mom import DocumentStatus
 from fastapi import FastAPI, Request, Response
 
 from .agent import extract_mom
+from .contract_parser import extract_contract
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -158,6 +159,96 @@ async def handle_pubsub_push(request: Request):
         logger.exception("Extraction failed for document %s", document_id)
         async with get_session() as session:
             await transition_document_status(session, document_id, DocumentStatus.FAILED)
+        return Response(status_code=500)
+
+
+@app.post("/extract-contract")
+async def handle_contract_pubsub_push(request: Request):
+    """Handle Pub/Sub push from contract-uploaded topic.
+
+    Expected payload:
+    {
+      "contract_id": "uuid",
+      "bucket": "ancol-contracts",
+      "name": "uploads/contract-id/file.pdf",
+      "contract_type": "vendor"
+    }
+    """
+    body = await request.json()
+
+    try:
+        push_message = PubSubPushMessage(**body)
+        payload = decode_pubsub_message(push_message)
+    except Exception:
+        logger.exception("Failed to decode Pub/Sub message for contract extraction")
+        return Response(status_code=400)
+
+    contract_id = payload.get("contract_id")
+    bucket = payload.get("bucket")
+    name = payload.get("name")
+    contract_type = payload.get("contract_type", "vendor")
+
+    if not contract_id or not bucket or not name:
+        logger.error("Missing contract_id, bucket, or name: %s", payload)
+        return Response(status_code=400)
+
+    gcs_uri = f"gs://{bucket}/{name}"
+    logger.info("Extracting contract %s from %s", contract_id, gcs_uri)
+
+    try:
+        # Load the raw document text via OCR helper
+        ocr_data = await _load_ocr_output(gcs_uri)
+        ocr_text = ocr_data.get("full_text", "") if isinstance(ocr_data, dict) else str(ocr_data)
+
+        # Run contract extraction
+        result = await extract_contract(
+            ocr_text=ocr_text,
+            contract_id=contract_id,
+            contract_type=contract_type,
+        )
+
+        # Store results in database
+        from ancol_common.db.repository import store_contract_extraction
+
+        async with get_session() as session:
+            await store_contract_extraction(
+                session=session,
+                contract_id=contract_id,
+                extraction_data=result.model_dump(mode="json"),
+                clauses=[c.model_dump() for c in result.clauses],
+                parties=[p.model_dump() for p in result.parties],
+                key_dates=result.key_dates,
+                financial_terms=result.financial_terms,
+                risk_summary=result.risk_summary,
+            )
+
+        # Publish extraction complete event
+        publish_message(
+            "contract-extracted",
+            {
+                "contract_id": contract_id,
+                "clause_count": len(result.clauses),
+                "party_count": len(result.parties),
+                "risk_level": result.risk_summary.get("overall_risk_level", "unknown"),
+                "risk_score": result.risk_summary.get("overall_risk_score"),
+            },
+        )
+
+        logger.info(
+            "Contract extraction stored: contract=%s, clauses=%d, risk=%s",
+            contract_id,
+            len(result.clauses),
+            result.risk_summary.get("overall_risk_level", "unknown"),
+        )
+        return {"status": "ok", "contract_id": contract_id, "clause_count": len(result.clauses)}
+
+    except Exception:
+        logger.exception("Contract extraction failed for %s", contract_id)
+        # Update contract status to failed
+        from ancol_common.db.repository import transition_contract_status
+
+        async with get_session() as session:
+            await transition_contract_status(session, contract_id, "failed", "Extraction failed")
         return Response(status_code=500)
 
 

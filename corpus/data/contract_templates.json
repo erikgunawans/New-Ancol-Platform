@@ -1,0 +1,65 @@
+[
+  {
+    "name": "Perjanjian Kerahasiaan (NDA)",
+    "contract_type": "nda",
+    "version": 1,
+    "description": "Standard non-disclosure agreement for protecting confidential business information.",
+    "required_clauses": ["confidentiality", "term", "breach", "return_materials", "governing_law", "dispute_resolution"],
+    "optional_clauses": ["non_solicitation", "injunctive_relief"],
+    "default_terms": {"duration": "2 tahun", "confidentiality_period": "3 tahun", "return_days": 14}
+  },
+  {
+    "name": "Perjanjian Vendor / Penyedia Jasa",
+    "contract_type": "vendor",
+    "version": 1,
+    "description": "Standard vendor/service provider agreement for procurement of goods and services.",
+    "required_clauses": ["scope", "payment_terms", "warranty", "termination", "governing_law"],
+    "optional_clauses": ["liability", "indemnification", "audit_rights", "confidentiality", "force_majeure"],
+    "default_terms": {"payment_days": 30, "warranty_months": 12, "notice_days": 30, "late_penalty_pct": 1}
+  },
+  {
+    "name": "Perjanjian Jual Beli",
+    "contract_type": "sale_purchase",
+    "version": 1,
+    "description": "Standard sale and purchase agreement for assets, goods, or property.",
+    "required_clauses": ["price", "delivery", "inspection", "warranty", "title_transfer", "governing_law", "dispute_resolution"],
+    "optional_clauses": ["force_majeure"],
+    "default_terms": {"delivery_days": 30, "inspection_days": 7, "currency": "IDR"}
+  },
+  {
+    "name": "Perjanjian Usaha Patungan (Joint Venture)",
+    "contract_type": "joint_venture",
+    "version": 1,
+    "description": "Joint venture agreement for establishing a shared business entity.",
+    "required_clauses": ["purpose", "governance", "capital_contribution", "profit_sharing", "management", "exit", "dispute_resolution", "dissolution"],
+    "optional_clauses": ["intellectual_property", "confidentiality"],
+    "default_terms": {"reserve_pct": 20, "exit_notice_days": 180, "currency": "IDR"}
+  },
+  {
+    "name": "Perjanjian Sewa Tanah / Bangunan",
+    "contract_type": "land_lease",
+    "version": 1,
+    "description": "Land and/or building lease agreement.",
+    "required_clauses": ["premises", "rent", "duration", "maintenance", "termination", "governing_law"],
+    "optional_clauses": ["improvements", "renewal"],
+    "default_terms": {"rent_period": "tahun", "payment_frequency": "tahunan", "renewal_notice_months": 6, "max_increase_pct": 10, "arrears_months": 3}
+  },
+  {
+    "name": "Perjanjian Kerja (Employment)",
+    "contract_type": "employment",
+    "version": 1,
+    "description": "Employment agreement compliant with Indonesian labor law (UU Cipta Kerja).",
+    "required_clauses": ["duties", "compensation", "benefits", "termination", "confidentiality", "governing_law"],
+    "optional_clauses": ["non_compete", "intellectual_property"],
+    "default_terms": {"notice_days": 30, "annual_leave": 12, "payday": 25, "currency": "IDR"}
+  },
+  {
+    "name": "SOP Rapat Direksi / Dewan Komisaris",
+    "contract_type": "sop_board_resolution",
+    "version": 1,
+    "description": "Standard operating procedure for Board of Directors and Commissioners meetings.",
+    "required_clauses": ["quorum", "voting", "abstention", "minutes", "governing_law"],
+    "optional_clauses": ["amendments"],
+    "default_terms": {"quorum_pct": 50}
+  }
+]

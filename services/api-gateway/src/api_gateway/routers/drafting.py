@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import ClauseLibrary, ContractTemplate
 from fastapi import APIRouter, HTTPException, Query
@@ -40,6 +41,7 @@ class ClauseLibraryResponse(BaseModel):
 
 @router.get("/templates")
 async def list_templates(
+    _auth=require_permission("drafting:generate"),
     contract_type: str | None = Query(None),
 ):
     """List available contract templates."""
@@ -71,7 +73,7 @@ async def list_templates(
 
 
 @router.get("/templates/{contract_type}")
-async def get_template(contract_type: str):
+async def get_template(contract_type: str, _auth=require_permission("drafting:generate")):
     """Get the latest active template for a contract type."""
     async with get_session() as session:
         result = await session.execute(
@@ -104,28 +106,41 @@ async def get_template(contract_type: str):
 
 
 @router.post("/generate")
-async def generate_draft(body: dict):
-    """Generate a contract draft from template + parameters.
+async def generate_draft(
+    _auth=require_permission("drafting:generate"),
+    body: dict | None = None,
+):
+    """Generate a contract draft from template + clause library + AI review."""
+    from ancol_common.drafting.engine import assemble_draft
+    from ancol_common.schemas.contract import ContractParty
+    from ancol_common.schemas.drafting import DraftRequest
 
-    This is a stub that will be connected to Gemini in Phase 2.
-    """
-    contract_type = body.get("contract_type", "vendor")
-    parties = body.get("parties", [])
-    key_terms = body.get("key_terms", {})
+    # Parse request
+    if body is None:
+        body = {}
+    request = DraftRequest(
+        contract_type=body.get("contract_type", "vendor"),
+        parties=[ContractParty(**p) for p in body.get("parties", [])],
+        key_terms=body.get("key_terms", {}),
+        clause_overrides=body.get("clause_overrides", []),
+        language=body.get("language", "id"),
+    )
+
+    async with get_session() as session:
+        result = await assemble_draft(session, request)
 
     return {
-        "status": "stub",
-        "message": (
-            "Draft generation will be powered by Gemini in Phase 2. "
-            f"Received request for {contract_type} with {len(parties)} parties."
-        ),
-        "contract_type": contract_type,
-        "key_terms": key_terms,
+        "contract_id": result.contract_id,
+        "draft_text": result.draft_text,
+        "clauses": [c.model_dump() for c in result.clauses],
+        "risk_assessment": result.risk_assessment,
+        "gcs_draft_uri": result.gcs_draft_uri,
     }
 
 
 @router.get("/clause-library")
 async def list_clause_library(
+    _auth=require_permission("drafting:generate"),
     contract_type: str | None = Query(None),
     category: str | None = Query(None),
     mandatory_only: bool = Query(False),
@@ -164,7 +179,7 @@ async def list_clause_library(
 
 
 @router.get("/clause-library/{clause_id}")
-async def get_clause(clause_id: str):
+async def get_clause(clause_id: str, _auth=require_permission("drafting:generate")):
     """Get a single clause from the library."""
     async with get_session() as session:
         result = await session.execute(
