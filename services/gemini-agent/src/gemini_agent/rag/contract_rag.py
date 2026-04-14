@@ -41,16 +41,18 @@ async def answer_contract_question(
     # Layer 1: Vertex AI Search (semantic)
     vector_results = await _contract_vector_search(question)
     for result in vector_results:
-        chunks.append({
-            "source": "vector_search",
-            "contract_id": result.get("contract_id", ""),
-            "contract_title": result.get("contract_title", ""),
-            "clause_number": result.get("clause_number", ""),
-            "category": result.get("clause_category", ""),
-            "text": result.get("content", ""),
-            "risk_level": result.get("risk_level", ""),
-            "relevance_score": result.get("relevance_score", 0.5),
-        })
+        chunks.append(
+            {
+                "source": "vector_search",
+                "contract_id": result.get("contract_id", ""),
+                "contract_title": result.get("contract_title", ""),
+                "clause_number": result.get("clause_number", ""),
+                "category": result.get("clause_category", ""),
+                "text": result.get("content", ""),
+                "risk_level": result.get("risk_level", ""),
+                "relevance_score": result.get("relevance_score", 0.5),
+            }
+        )
 
     # Layer 2: Spanner Graph (relationship expansion)
     graph = get_graph_client()
@@ -58,31 +60,41 @@ async def answer_contract_question(
     if contract_id:
         contract_ids.add(contract_id)
 
-    if graph:
-        for cid in contract_ids:
+    if graph and contract_ids:
+        import asyncio
+
+        async def _graph_lookup(cid: str) -> tuple[list[dict], list[dict]]:
+            regs, rels = [], []
             try:
-                regs = await graph.get_related_regulations_for_contract(cid)
-                for reg in regs:
-                    regulations.append({
-                        "regulation_id": reg.id,
-                        "title": reg.title,
-                        "issuer": reg.issuer,
-                        "status": reg.status,
-                    })
+                for reg in await graph.get_related_regulations_for_contract(cid):
+                    regs.append(
+                        {
+                            "regulation_id": reg.id,
+                            "title": reg.title,
+                            "issuer": reg.issuer,
+                            "status": reg.status,
+                        }
+                    )
             except Exception:
                 logger.warning("Graph regulation lookup failed for %s", cid)
-
             try:
-                related = await graph.get_related_contracts(cid)
-                for rc in related:
-                    related_contracts.append({
-                        "id": rc.id,
-                        "title": rc.title,
-                        "contract_type": rc.contract_type,
-                        "status": rc.status,
-                    })
+                for rc in await graph.get_related_contracts(cid):
+                    rels.append(
+                        {
+                            "id": rc.id,
+                            "title": rc.title,
+                            "contract_type": rc.contract_type,
+                            "status": rc.status,
+                        }
+                    )
             except Exception:
                 logger.warning("Graph contract chain lookup failed for %s", cid)
+            return regs, rels
+
+        results = await asyncio.gather(*[_graph_lookup(cid) for cid in contract_ids])
+        for regs, rels in results:
+            regulations.extend(regs)
+            related_contracts.extend(rels)
 
     # Layer 3: Cloud SQL (exact lookup)
     if contract_id:
@@ -91,16 +103,18 @@ async def answer_contract_question(
             clauses_resp = await api.get_contract_clauses(contract_id)
             contract_clauses = clauses_resp.get("clauses", [])
             for cl in contract_clauses:
-                chunks.append({
-                    "source": "cloud_sql",
-                    "contract_id": contract_id,
-                    "contract_title": contract.get("title", ""),
-                    "clause_number": cl.get("clause_number", ""),
-                    "category": cl.get("category", ""),
-                    "text": cl.get("text", ""),
-                    "risk_level": cl.get("risk_level", ""),
-                    "relevance_score": 1.0,  # direct match gets highest score
-                })
+                chunks.append(
+                    {
+                        "source": "cloud_sql",
+                        "contract_id": contract_id,
+                        "contract_title": contract.get("title", ""),
+                        "clause_number": cl.get("clause_number", ""),
+                        "category": cl.get("category", ""),
+                        "text": cl.get("text", ""),
+                        "risk_level": cl.get("risk_level", ""),
+                        "relevance_score": 1.0,  # direct match gets highest score
+                    }
+                )
         except Exception:
             logger.warning("Cloud SQL lookup failed for contract %s", contract_id)
 
@@ -171,15 +185,17 @@ async def _contract_vector_search(query: str) -> list[dict]:
                     if snippets:
                         content = snippets[0].get("snippet", "")
 
-                results.append({
-                    "contract_id": struct_data.get("contract_id", doc.id),
-                    "contract_title": struct_data.get("contract_title", ""),
-                    "clause_number": struct_data.get("clause_number", ""),
-                    "clause_category": struct_data.get("clause_category", ""),
-                    "risk_level": struct_data.get("risk_level", ""),
-                    "content": content or struct_data.get("title", ""),
-                    "relevance_score": 0.7,
-                })
+                results.append(
+                    {
+                        "contract_id": struct_data.get("contract_id", doc.id),
+                        "contract_title": struct_data.get("contract_title", ""),
+                        "clause_number": struct_data.get("clause_number", ""),
+                        "clause_category": struct_data.get("clause_category", ""),
+                        "risk_level": struct_data.get("risk_level", ""),
+                        "content": content or struct_data.get("title", ""),
+                        "relevance_score": 0.7,
+                    }
+                )
 
         return results
 
@@ -225,7 +241,7 @@ async def _synthesize_answer(
 
         context = "\n\n".join(
             f"[{c['contract_title']}, {c['clause_number']}] "
-            f"({c['category']}, risiko: {c['risk_level']})\n{c['text']}"
+            f"({c['category']}, risiko: {c['risk_level']})\n{c['text'][:1000]}"
             for c in chunks
         )
 
@@ -245,9 +261,7 @@ async def _synthesize_answer(
         )
 
         user_message = (
-            f"## Pertanyaan\n{question}\n\n"
-            f"## Konteks Klausul Kontrak\n{context}"
-            f"{reg_context}"
+            f"## Pertanyaan\n{question}\n\n## Konteks Klausul Kontrak\n{context}{reg_context}"
         )
 
         response = client.models.generate_content(

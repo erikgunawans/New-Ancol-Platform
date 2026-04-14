@@ -9,6 +9,8 @@ from ancol_common.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+_DOC_ID_SANITIZE = re.compile(r"[^a-zA-Z0-9_-]")
+
 
 async def index_contract_clauses(
     contract_id: str,
@@ -37,7 +39,7 @@ async def index_contract_clauses(
     for clause in clauses:
         clause_number = clause.get("clause_number", "unknown")
         # Sanitize clause number for document ID
-        doc_id = f"{contract_id}_{re.sub(r'[^a-zA-Z0-9_-]', '_', clause_number)}"
+        doc_id = f"{contract_id}_{_DOC_ID_SANITIZE.sub('_', clause_number)}"
 
         struct_data = {
             "contract_id": contract_id,
