@@ -1,9 +1,9 @@
-"""Data access layer — document state machine and common queries."""
+"""Data access layer — document/contract state machines and common queries."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ancol_common.db.models import (
     BatchItem,
     BatchJob,
+    Contract,
     Document,
+    ObligationRecord,
     User,
 )
 
@@ -235,3 +237,162 @@ async def get_next_batch_items(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+# ── Contract Lifecycle Operations ──
+
+
+CONTRACT_VALID_TRANSITIONS: dict[str, list[str]] = {
+    "draft": ["pending_review", "failed"],
+    "pending_review": ["in_review", "draft"],
+    "in_review": ["approved", "draft"],  # reject → draft
+    "approved": ["executed"],
+    "executed": ["active"],
+    "active": ["expiring", "terminated", "amended"],
+    "expiring": ["active", "expired", "terminated"],  # renew → active
+    "expired": [],  # terminal
+    "terminated": [],  # terminal
+    "amended": ["active"],  # new version activates
+    "failed": ["draft"],  # retry
+}
+
+
+async def transition_contract_status(
+    session: AsyncSession,
+    contract_id: str,
+    new_status: str,
+    error_message: str | None = None,
+) -> bool:
+    """Transition a contract to a new status if the transition is valid."""
+    contract = await get_contract_by_id(session, contract_id)
+    if contract is None:
+        return False
+
+    current_status = contract.status
+    if new_status not in CONTRACT_VALID_TRANSITIONS.get(current_status, []):
+        return False
+
+    contract.status = new_status
+    contract.updated_at = datetime.now(UTC)
+    if error_message:
+        contract.error_message = error_message
+    return True
+
+
+async def create_contract(
+    session: AsyncSession,
+    title: str,
+    contract_type: str,
+    uploaded_by: str,
+    gcs_raw_uri: str | None = None,
+    contract_number: str | None = None,
+    template_id: str | None = None,
+) -> Contract:
+    """Create a new contract in draft status."""
+    contract = Contract(
+        title=title,
+        contract_type=contract_type,
+        status="draft",
+        uploaded_by=uuid.UUID(uploaded_by),
+        gcs_raw_uri=gcs_raw_uri,
+        contract_number=contract_number,
+        template_id=uuid.UUID(template_id) if template_id else None,
+    )
+    session.add(contract)
+    await session.flush()
+    return contract
+
+
+async def get_contract_by_id(session: AsyncSession, contract_id: str) -> Contract | None:
+    """Fetch a contract by ID."""
+    result = await session.execute(
+        select(Contract).where(Contract.id == uuid.UUID(contract_id))
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_contracts(
+    session: AsyncSession,
+    status: str | None = None,
+    contract_type: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Contract]:
+    """List contracts with optional filtering."""
+    query = select(Contract)
+    if status:
+        query = query.where(Contract.status == status)
+    if contract_type:
+        query = query.where(Contract.contract_type == contract_type)
+    query = query.order_by(Contract.created_at.desc()).limit(limit).offset(offset)
+    result = await session.execute(query)
+    return list(result.scalars().all())
+
+
+async def create_obligation(
+    session: AsyncSession,
+    contract_id: str,
+    obligation_type: str,
+    description: str,
+    due_date: date,
+    responsible_party_name: str,
+    recurrence: str | None = None,
+    responsible_user_id: str | None = None,
+) -> ObligationRecord:
+    """Create a new obligation linked to a contract."""
+    obligation = ObligationRecord(
+        contract_id=uuid.UUID(contract_id),
+        obligation_type=obligation_type,
+        description=description,
+        due_date=due_date,
+        responsible_party_name=responsible_party_name,
+        recurrence=recurrence,
+        responsible_user_id=uuid.UUID(responsible_user_id) if responsible_user_id else None,
+        status="upcoming",
+    )
+    session.add(obligation)
+    await session.flush()
+    return obligation
+
+
+async def list_obligations(
+    session: AsyncSession,
+    contract_id: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+) -> list[ObligationRecord]:
+    """List obligations with optional filtering."""
+    query = select(ObligationRecord)
+    if contract_id:
+        query = query.where(ObligationRecord.contract_id == uuid.UUID(contract_id))
+    if status:
+        query = query.where(ObligationRecord.status == status)
+    query = query.order_by(ObligationRecord.due_date).limit(limit)
+    result = await session.execute(query)
+    return list(result.scalars().all())
+
+
+async def fulfill_obligation(
+    session: AsyncSession,
+    obligation_id: str,
+    fulfilled_by: str,
+    evidence_gcs_uri: str | None = None,
+) -> bool:
+    """Mark an obligation as fulfilled."""
+    result = await session.execute(
+        select(ObligationRecord).where(ObligationRecord.id == uuid.UUID(obligation_id))
+    )
+    obligation = result.scalar_one_or_none()
+    if obligation is None:
+        return False
+
+    if obligation.status in ("fulfilled", "waived"):
+        return False  # already terminal
+
+    obligation.status = "fulfilled"
+    obligation.fulfilled_at = datetime.now(UTC)
+    obligation.fulfilled_by = uuid.UUID(fulfilled_by)
+    if evidence_gcs_uri:
+        obligation.evidence_gcs_uri = evidence_gcs_uri
+    obligation.updated_at = datetime.now(UTC)
+    return True

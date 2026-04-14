@@ -22,9 +22,12 @@ from .routers import (
     analytics,
     audit,
     batch,
+    contracts,
     dashboard,
     documents,
+    drafting,
     hitl,
+    obligations,
     reports,
     retroactive,
     templates,
@@ -73,6 +76,9 @@ app.include_router(batch.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(templates.router, prefix="/api")
 app.include_router(retroactive.router, prefix="/api")
+app.include_router(contracts.router, prefix="/api")
+app.include_router(obligations.router, prefix="/api")
+app.include_router(drafting.router, prefix="/api")
 
 
 @app.get("/health")
@@ -96,5 +102,8 @@ async def api_root():
             "analytics": "/api/analytics",
             "templates": "/api/templates",
             "retroactive": "/api/retroactive",
+            "contracts": "/api/contracts",
+            "obligations": "/api/obligations",
+            "drafting": "/api/drafting",
         },
     }

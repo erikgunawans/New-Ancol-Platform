@@ -369,6 +369,202 @@ def format_document_status(data: dict) -> str:
     return "\n".join(lines).strip()
 
 
+# -- Contract status labels --
+
+_CONTRACT_STATUS_LABEL: dict[str, str] = {
+    "draft": "Draf",
+    "pending_review": "Menunggu Review",
+    "in_review": "Dalam Review",
+    "approved": "Disetujui",
+    "executed": "Ditandatangani",
+    "active": "Aktif",
+    "expiring": "Akan Berakhir",
+    "expired": "Berakhir",
+    "terminated": "Dibatalkan",
+    "amended": "Diamandemen",
+    "failed": "Gagal",
+}
+
+_CONTRACT_TYPE_LABEL: dict[str, str] = {
+    "nda": "NDA",
+    "vendor": "Vendor",
+    "sale_purchase": "Jual Beli",
+    "joint_venture": "Joint Venture",
+    "land_lease": "Sewa Tanah/HGB",
+    "employment": "Ketenagakerjaan",
+    "sop_board_resolution": "SOP/SK Direksi",
+}
+
+_OBLIGATION_TYPE_LABEL: dict[str, str] = {
+    "renewal": "Perpanjangan",
+    "reporting": "Pelaporan",
+    "payment": "Pembayaran",
+    "termination_notice": "Notifikasi Pemutusan",
+    "deliverable": "Deliverable",
+    "compliance_filing": "Filing Kepatuhan",
+}
+
+_OBLIGATION_STATUS_LABEL: dict[str, str] = {
+    "upcoming": "Akan Datang",
+    "due_soon": "Segera Jatuh Tempo",
+    "overdue": "Terlambat",
+    "fulfilled": "Terpenuhi",
+    "waived": "Dikesampingkan",
+}
+
+_RISK_INDICATOR: dict[str, str] = {
+    "high": "[HIGH]",
+    "medium": "[MEDIUM]",
+    "low": "[LOW]",
+}
+
+
+def format_contract_status(data: dict) -> str:
+    """Format contract status for chat display."""
+    status = data.get("status", "unknown")
+    status_label = _CONTRACT_STATUS_LABEL.get(status, status)
+    ctype = data.get("contract_type", "")
+    type_label = _CONTRACT_TYPE_LABEL.get(ctype, ctype)
+
+    lines = [
+        "**Status Kontrak**",
+        "",
+        f"**Judul:** {_safe_get(data, 'title')}",
+        f"**ID:** `{_safe_get(data, 'id')}`",
+        f"**Nomor:** {_safe_get(data, 'contract_number')}",
+        f"**Tipe:** {type_label}",
+        f"**Status:** {status_label} (`{status}`)",
+    ]
+
+    effective = data.get("effective_date")
+    expiry = data.get("expiry_date")
+    if effective:
+        lines.append(f"**Berlaku:** {effective}")
+    if expiry:
+        lines.append(f"**Berakhir:** {expiry}")
+
+    value = data.get("total_value")
+    currency = data.get("currency", "IDR")
+    if value:
+        lines.append(f"**Nilai:** {currency} {float(value):,.0f}")
+
+    risk = data.get("risk_level")
+    if risk:
+        lines.append(f"**Risiko:** {_RISK_INDICATOR.get(risk, risk)}")
+
+    return "\n".join(lines).strip()
+
+
+def format_contract_risk(data: dict) -> str:
+    """Format clause-level risk analysis."""
+    lines = [
+        "**Analisis Risiko Kontrak**",
+        "",
+        f"**ID:** `{_safe_get(data, 'contract_id')}`",
+        f"**Level Risiko:** {_RISK_INDICATOR.get(data.get('risk_level', ''), '-')}",
+    ]
+
+    score = data.get("risk_score")
+    if score is not None:
+        lines.append(f"**Skor Risiko:** {float(score):.1f}/100")
+
+    clauses = data.get("extraction_data", {}).get("clauses", [])
+    if clauses:
+        lines.append("")
+        lines.append("**Klausul Berisiko:**")
+        for cl in clauses:
+            risk = cl.get("risk_level")
+            if risk:
+                lines.append(
+                    f"- {_RISK_INDICATOR.get(risk, '')} "
+                    f"**{cl.get('title', '-')}**: {cl.get('risk_reason', '-')}"
+                )
+
+    return "\n".join(lines).strip()
+
+
+def format_obligations(data: dict) -> str:
+    """Format obligation list for chat."""
+    items = data.get("obligations", data.get("upcoming", []))
+    if not items:
+        return "Tidak ada kewajiban kontrak yang ditemukan."
+
+    total = data.get("total", len(items))
+    lines = [f"**Kewajiban Kontrak** ({total} item)", ""]
+
+    for i, o in enumerate(items, 1):
+        status = o.get("status", "")
+        status_label = _OBLIGATION_STATUS_LABEL.get(status, status)
+        otype = o.get("obligation_type", "")
+        type_label = _OBLIGATION_TYPE_LABEL.get(otype, otype)
+
+        lines.append(f"  {i}. **{o.get('description', '-')}**")
+        lines.append(f"     Tipe: {type_label} | Status: {status_label}")
+        lines.append(f"     Jatuh tempo: {o.get('due_date', '-')}")
+        lines.append(f"     Penanggung jawab: {o.get('responsible_party_name', '-')}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def format_draft_output(data: dict) -> str:
+    """Format draft generation result."""
+    if data.get("status") == "stub":
+        return (
+            "Fitur drafting kontrak akan tersedia di Phase 2.\n"
+            f"Permintaan untuk tipe **{data.get('contract_type', '-')}** telah dicatat."
+        )
+
+    lines = [
+        "**Draft Kontrak**",
+        "",
+        f"**ID:** `{_safe_get(data, 'contract_id')}`",
+        f"**Tipe:** {_CONTRACT_TYPE_LABEL.get(data.get('contract_type', ''), '-')}",
+    ]
+
+    clauses = data.get("clauses", [])
+    if clauses:
+        lines.append(f"**Klausul:** {len(clauses)} klausul")
+
+    draft_uri = data.get("gcs_draft_uri")
+    if draft_uri:
+        lines.append(f"**Download:** [Draft kontrak]({draft_uri})")
+
+    return "\n".join(lines).strip()
+
+
+def format_contract_portfolio(data: dict) -> str:
+    """Format portfolio-level contract summary."""
+    contracts = data.get("contracts", [])
+    total = data.get("total", len(contracts))
+
+    lines = [f"**Portfolio Kontrak** ({total} kontrak)", ""]
+
+    # Group by status
+    by_status: dict[str, int] = {}
+    by_type: dict[str, int] = {}
+    for c in contracts:
+        s = c.get("status", "unknown")
+        by_status[s] = by_status.get(s, 0) + 1
+        t = c.get("contract_type", "unknown")
+        by_type[t] = by_type.get(t, 0) + 1
+
+    if by_status:
+        lines.append("**Distribusi Status:**")
+        for status, count in sorted(by_status.items()):
+            label = _CONTRACT_STATUS_LABEL.get(status, status)
+            lines.append(f"- {label}: {count}")
+        lines.append("")
+
+    if by_type:
+        lines.append("**Distribusi Tipe:**")
+        for ctype, count in sorted(by_type.items()):
+            label = _CONTRACT_TYPE_LABEL.get(ctype, ctype)
+            lines.append(f"- {label}: {count}")
+
+    return "\n".join(lines).strip()
+
+
 def format_regulation_result(data: dict) -> str:
     """Format regulation search result with citation chain."""
     if not data:

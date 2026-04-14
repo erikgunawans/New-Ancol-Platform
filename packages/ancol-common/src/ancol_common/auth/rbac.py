@@ -60,6 +60,58 @@ ROLE_PERMISSIONS: dict[str, set[UserRole]] = {
         UserRole.INTERNAL_AUDITOR,
         UserRole.KOMISARIS,
         UserRole.LEGAL_COMPLIANCE,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.BUSINESS_DEV,
+        UserRole.ADMIN,
+    },
+    # Contract Lifecycle Management
+    "contracts:create": {
+        UserRole.CORP_SECRETARY,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.ADMIN,
+    },
+    "contracts:list": {
+        UserRole.CORP_SECRETARY,
+        UserRole.INTERNAL_AUDITOR,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.BUSINESS_DEV,
+        UserRole.KOMISARIS,
+        UserRole.ADMIN,
+    },
+    "contracts:review": {
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.INTERNAL_AUDITOR,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.ADMIN,
+    },
+    "contracts:approve": {
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.CORP_SECRETARY,
+        UserRole.ADMIN,
+    },
+    "obligations:list": {
+        UserRole.CORP_SECRETARY,
+        UserRole.INTERNAL_AUDITOR,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.KOMISARIS,
+        UserRole.ADMIN,
+    },
+    "obligations:fulfill": {
+        UserRole.CONTRACT_MANAGER,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.ADMIN,
+    },
+    "drafting:generate": {
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.BUSINESS_DEV,
+        UserRole.ADMIN,
+    },
+    "drafting:manage_library": {
+        UserRole.LEGAL_COMPLIANCE,
         UserRole.ADMIN,
     },
 }

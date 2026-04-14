@@ -24,6 +24,9 @@ ROLE_TOOL_ACCESS: dict[str, set[str]] = {
         "get_review_detail",
         "submit_decision",
         "get_report",
+        "upload_contract",
+        "check_contract_status",
+        "list_obligations",
     },
     "internal_auditor": {
         "review_gate",
@@ -32,12 +35,17 @@ ROLE_TOOL_ACCESS: dict[str, set[str]] = {
         "get_report",
         "get_dashboard",
         "check_status",
+        "check_contract_status",
+        "get_contract_risk",
+        "list_obligations",
     },
     "komisaris": {
         "get_report",
         "get_dashboard",
         "search_regulations",
         "check_status",
+        "check_contract_status",
+        "get_contract_portfolio",
     },
     "legal_compliance": {
         "review_gate",
@@ -46,6 +54,32 @@ ROLE_TOOL_ACCESS: dict[str, set[str]] = {
         "search_regulations",
         "check_status",
         "get_report",
+        "upload_contract",
+        "check_contract_status",
+        "get_contract_risk",
+        "list_obligations",
+        "generate_draft",
+        "ask_contract_question",
+    },
+    "contract_manager": {
+        "upload_contract",
+        "check_contract_status",
+        "get_contract_risk",
+        "get_contract_portfolio",
+        "list_obligations",
+        "fulfill_obligation",
+        "generate_draft",
+        "ask_contract_question",
+        "search_regulations",
+        "check_status",
+        "get_report",
+    },
+    "business_dev": {
+        "generate_draft",
+        "check_contract_status",
+        "ask_contract_question",
+        "search_regulations",
+        "check_status",
     },
     "admin": {
         "upload_document",
@@ -56,6 +90,14 @@ ROLE_TOOL_ACCESS: dict[str, set[str]] = {
         "get_report",
         "search_regulations",
         "get_dashboard",
+        "upload_contract",
+        "check_contract_status",
+        "get_contract_risk",
+        "get_contract_portfolio",
+        "list_obligations",
+        "fulfill_obligation",
+        "generate_draft",
+        "ask_contract_question",
     },
 }
 
@@ -119,6 +161,52 @@ async def _dispatch_tool(
         from gemini_agent.tools.dashboard import handle_get_dashboard
 
         return await handle_get_dashboard(params, api, user)
+
+    # -- Contract tools --
+
+    if tool_name == "upload_contract":
+        from gemini_agent.tools.contracts import handle_upload_contract
+
+        return await handle_upload_contract(params, api, user)
+
+    if tool_name == "check_contract_status":
+        from gemini_agent.tools.contracts import handle_check_contract_status
+
+        return await handle_check_contract_status(params, api, user)
+
+    if tool_name == "get_contract_portfolio":
+        from gemini_agent.tools.contracts import handle_get_contract_portfolio
+
+        return await handle_get_contract_portfolio(params, api, user)
+
+    if tool_name == "get_contract_risk":
+        contract_id = params.get("contract_id", "")
+        if not contract_id:
+            return "Error: Mohon berikan contract_id."
+        data = await api.get_contract_risk(contract_id)
+        from gemini_agent.formatting import format_contract_risk
+
+        return format_contract_risk(data)
+
+    if tool_name == "list_obligations":
+        from gemini_agent.tools.obligations import handle_list_obligations
+
+        return await handle_list_obligations(params, api, user)
+
+    if tool_name == "fulfill_obligation":
+        from gemini_agent.tools.obligations import handle_fulfill_obligation
+
+        return await handle_fulfill_obligation(params, api, user)
+
+    if tool_name == "generate_draft":
+        from gemini_agent.tools.drafting import handle_generate_draft
+
+        return await handle_generate_draft(params, api, user)
+
+    if tool_name == "ask_contract_question":
+        from gemini_agent.tools.contract_qa import handle_ask_contract_question
+
+        return await handle_ask_contract_question(params, api, user)
 
     raise ValueError(f"Unknown tool: {tool_name}")
 

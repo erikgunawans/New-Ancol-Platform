@@ -24,6 +24,11 @@ variable "regulation_monitor_url" {
   type        = string
 }
 
+variable "api_gateway_url" {
+  description = "API Gateway Cloud Run service URL (required for obligation scheduler)"
+  type        = string
+}
+
 variable "invoker_service_account_email" {
   description = "Service account email for OIDC token (must have invoker permission on target services)"
   type        = string

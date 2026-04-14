@@ -11,7 +11,7 @@ export type MomType = "regular" | "circular" | "extraordinary";
 export type Severity = "critical" | "high" | "medium" | "low";
 export type HitlGate = "gate_1" | "gate_2" | "gate_3" | "gate_4";
 export type HitlDecision = "approved" | "rejected" | "modified";
-export type UserRole = "corp_secretary" | "internal_auditor" | "komisaris" | "legal_compliance" | "admin";
+export type UserRole = "corp_secretary" | "internal_auditor" | "komisaris" | "legal_compliance" | "contract_manager" | "business_dev" | "admin";
 
 export interface DocumentSummary {
   id: string;
@@ -134,6 +134,111 @@ export interface BatchJobDetail {
   job: BatchJobSummary;
   items: BatchItemSummary[];
   status_counts: Record<string, number>;
+}
+
+// Contract Lifecycle Management types
+export type ContractStatus =
+  | "draft" | "pending_review" | "in_review" | "approved" | "executed"
+  | "active" | "expiring" | "expired" | "terminated" | "amended" | "failed";
+
+export type ContractType =
+  | "nda" | "vendor" | "sale_purchase" | "joint_venture"
+  | "land_lease" | "employment" | "sop_board_resolution";
+
+export type RiskLevel = "high" | "medium" | "low";
+
+export type ObligationType =
+  | "renewal" | "reporting" | "payment" | "termination_notice"
+  | "deliverable" | "compliance_filing";
+
+export type ObligationStatus = "upcoming" | "due_soon" | "overdue" | "fulfilled" | "waived";
+
+export interface ContractSummary {
+  id: string;
+  title: string;
+  contract_number?: string;
+  contract_type: ContractType;
+  status: ContractStatus;
+  effective_date?: string;
+  expiry_date?: string;
+  total_value?: number;
+  currency: string;
+  risk_level?: RiskLevel;
+  risk_score?: number;
+  page_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractDetail extends ContractSummary {
+  clauses: ContractClauseItem[];
+  parties: ContractPartyItem[];
+  obligations: ObligationSummary[];
+}
+
+export interface ContractClauseItem {
+  id: string;
+  clause_number: string;
+  title: string;
+  text: string;
+  category?: string;
+  risk_level?: RiskLevel;
+  risk_reason?: string;
+  confidence: number;
+}
+
+export interface ContractPartyItem {
+  id: string;
+  party_name: string;
+  party_role: string;
+  entity_type: string;
+  contact_email?: string;
+}
+
+export interface ObligationSummary {
+  id: string;
+  contract_id: string;
+  obligation_type: ObligationType;
+  description: string;
+  due_date: string;
+  recurrence?: string;
+  next_due_date?: string;
+  responsible_party_name: string;
+  responsible_user_id?: string;
+  status: ObligationStatus;
+  reminder_30d_sent: boolean;
+  reminder_14d_sent: boolean;
+  reminder_7d_sent: boolean;
+  fulfilled_at?: string;
+  fulfilled_by?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractTemplate {
+  id: string;
+  name: string;
+  contract_type: ContractType;
+  version: number;
+  description?: string;
+  required_clauses?: Record<string, unknown>;
+  optional_clauses?: Record<string, unknown>;
+  default_terms?: Record<string, unknown>;
+  is_active: boolean;
+}
+
+export interface ClauseLibraryItem {
+  id: string;
+  contract_type: ContractType;
+  clause_category: string;
+  title_id: string;
+  title_en?: string;
+  text_id: string;
+  text_en?: string;
+  risk_notes?: string;
+  is_mandatory: boolean;
+  version: number;
 }
 
 // Analytics types

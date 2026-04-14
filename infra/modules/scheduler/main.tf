@@ -61,3 +61,28 @@ resource "google_cloud_scheduler_job" "regulation_check" {
     max_backoff_duration = "120s"
   }
 }
+
+# Obligation deadline check — daily at 07:00 WIB
+resource "google_cloud_scheduler_job" "obligation_check" {
+  name        = "${var.prefix}-obligation-check"
+  project     = var.project_id
+  region      = var.region
+  description = "Check contract obligation deadlines and send reminders (30/14/7 days)"
+  schedule    = "0 7 * * *"
+  time_zone   = "Asia/Jakarta"
+
+  http_target {
+    uri         = "${var.api_gateway_url}/api/obligations/upcoming?days=30"
+    http_method = "GET"
+
+    oidc_token {
+      service_account_email = var.invoker_service_account_email
+    }
+  }
+
+  retry_config {
+    retry_count          = 2
+    min_backoff_duration = "30s"
+    max_backoff_duration = "120s"
+  }
+}
