@@ -214,7 +214,7 @@ class TestGenerateContractHtml:
 
         assert "<script>" not in html
         assert "&lt;script&gt;" in html
-        assert '<img onerror' not in html
+        assert "<img onerror" not in html
         assert "&lt;img onerror" in html
 
 
