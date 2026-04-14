@@ -19,6 +19,7 @@ const NAV_SECTIONS = [
     label: "Contract Management",
     items: [
       { href: "/contracts", label: "Kontrak", icon: "📋" },
+      { href: "/contracts/draft", label: "Buat Draf", icon: "📝" },
       { href: "/obligations", label: "Kewajiban", icon: "⏰" },
       { href: "/approve", label: "Persetujuan", icon: "✍️" },
     ],
