@@ -279,9 +279,6 @@ export interface DraftResult {
   gcs_draft_uri?: string;
 }
 
-export interface DraftPdfResult {
-  contract_id: string;
+export interface DraftPdfResult extends Pick<DraftResult, "contract_id" | "clauses" | "risk_assessment"> {
   html: string;
-  clauses: ContractClauseItem[];
-  risk_assessment: Array<Record<string, string>>;
 }

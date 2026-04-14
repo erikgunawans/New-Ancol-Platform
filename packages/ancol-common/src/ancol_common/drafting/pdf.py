@@ -286,8 +286,11 @@ def render_contract_pdf(html: str, output_path: str) -> str:
         logger.info("Contract PDF generated: %s", output_path)
         return output_path
     except ImportError:
+        import os
+
         logger.warning("WeasyPrint not installed — saving contract as HTML instead")
-        html_path = output_path.replace(".pdf", ".html")
+        base, _ = os.path.splitext(output_path)
+        html_path = base + ".html"
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(html)
         return html_path

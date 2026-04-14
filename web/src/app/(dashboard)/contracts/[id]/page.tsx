@@ -3,77 +3,17 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getContract, getContractClauses, getContractRisk, getObligations } from "@/lib/api";
+import {
+  CONTRACT_STATUS_LABELS as STATUS_LABELS,
+  CONTRACT_STATUS_COLORS as STATUS_COLORS,
+  CONTRACT_TYPE_LABELS as TYPE_LABELS,
+  RISK_COLORS,
+  OBLIGATION_STATUS_LABELS,
+  OBLIGATION_STATUS_COLORS,
+  OBLIGATION_TYPE_LABELS,
+} from "@/lib/contracts";
 import { formatDate } from "@/lib/utils";
 import type { ContractSummary, ContractClauseItem, ObligationSummary } from "@/types";
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Draf",
-  pending_review: "Menunggu Review",
-  in_review: "Dalam Review",
-  approved: "Disetujui",
-  executed: "Ditandatangani",
-  active: "Aktif",
-  expiring: "Akan Berakhir",
-  expired: "Berakhir",
-  terminated: "Dibatalkan",
-  amended: "Diamandemen",
-  failed: "Gagal",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  pending_review: "bg-yellow-100 text-yellow-700",
-  in_review: "bg-blue-100 text-blue-700",
-  approved: "bg-green-100 text-green-700",
-  executed: "bg-green-100 text-green-700",
-  active: "bg-emerald-100 text-emerald-700",
-  expiring: "bg-orange-100 text-orange-700",
-  expired: "bg-red-100 text-red-700",
-  terminated: "bg-red-100 text-red-700",
-  amended: "bg-purple-100 text-purple-700",
-  failed: "bg-red-100 text-red-700",
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  nda: "NDA",
-  vendor: "Vendor",
-  sale_purchase: "Jual Beli",
-  joint_venture: "Joint Venture",
-  land_lease: "Sewa Tanah",
-  employment: "Ketenagakerjaan",
-  sop_board_resolution: "SOP/SK Direksi",
-};
-
-const RISK_COLORS: Record<string, string> = {
-  high: "bg-red-100 text-red-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  low: "bg-green-100 text-green-700",
-};
-
-const OBLIGATION_STATUS_LABELS: Record<string, string> = {
-  upcoming: "Akan Datang",
-  due_soon: "Segera Jatuh Tempo",
-  overdue: "Terlambat",
-  fulfilled: "Terpenuhi",
-  waived: "Dikesampingkan",
-};
-
-const OBLIGATION_STATUS_COLORS: Record<string, string> = {
-  upcoming: "bg-blue-100 text-blue-700",
-  due_soon: "bg-orange-100 text-orange-700",
-  overdue: "bg-red-100 text-red-700",
-  fulfilled: "bg-green-100 text-green-700",
-  waived: "bg-gray-100 text-gray-600",
-};
-
-const OBLIGATION_TYPE_LABELS: Record<string, string> = {
-  renewal: "Perpanjangan",
-  reporting: "Pelaporan",
-  payment: "Pembayaran",
-  termination_notice: "Notifikasi Pemutusan",
-  deliverable: "Deliverable",
-  compliance_filing: "Filing Kepatuhan",
-};
 
 type Tab = "clauses" | "obligations" | "risk";
 

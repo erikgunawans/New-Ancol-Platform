@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { generateDraft, generateDraftPdf } from "@/lib/api";
+import { CONTRACT_TYPE_LABELS } from "@/lib/contracts";
 import type { DraftFormData, DraftResult, ContractType } from "@/types";
 
 interface PartyInput {
@@ -11,15 +12,9 @@ interface PartyInput {
   contact_email?: string;
 }
 
-const CONTRACT_TYPES: { value: ContractType; label: string }[] = [
-  { value: "vendor", label: "Perjanjian Vendor" },
-  { value: "nda", label: "NDA" },
-  { value: "sale_purchase", label: "Jual Beli" },
-  { value: "joint_venture", label: "Joint Venture" },
-  { value: "land_lease", label: "Sewa Tanah" },
-  { value: "employment", label: "Ketenagakerjaan" },
-  { value: "sop_board_resolution", label: "SOP/SK Direksi" },
-];
+const CONTRACT_TYPES = Object.entries(CONTRACT_TYPE_LABELS).map(
+  ([value, label]) => ({ value: value as ContractType, label })
+);
 
 const ROLE_LABELS: Record<string, string> = {
   principal: "Pihak Pertama",
@@ -136,6 +131,7 @@ export default function DraftGeneratorPage() {
       const blob = new Blob([res.html], { type: "text/html" });
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal membuat PDF");
     } finally {
