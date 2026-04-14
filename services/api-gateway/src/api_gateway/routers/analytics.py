@@ -6,6 +6,7 @@ In production, these queries can be backed by BigQuery materialized views.
 
 from __future__ import annotations
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import (
     ComplianceFindingRecord,
@@ -75,6 +76,7 @@ class HitlPerformanceResponse(BaseModel):
 
 @router.get("/trends", response_model=ScoreTrendResponse)
 async def get_score_trends(
+    _auth=require_permission("dashboard:view"),
     months: int = Query(12, ge=1, le=60),
 ):
     """Get monthly compliance score trends for approved reports."""
@@ -112,7 +114,7 @@ async def get_score_trends(
 
 
 @router.get("/violations", response_model=ViolationHeatmapResponse)
-async def get_violation_heatmap():
+async def get_violation_heatmap(_auth=require_permission("dashboard:view")):
     """Get violation type distribution across all analyzed documents."""
     async with get_session() as session:
         # Count documents with findings
@@ -158,7 +160,7 @@ async def get_violation_heatmap():
 
 
 @router.get("/coverage", response_model=CoverageStats)
-async def get_coverage_stats():
+async def get_coverage_stats(_auth=require_permission("dashboard:view")):
     """Get document processing coverage statistics."""
     async with get_session() as session:
         # Total and completed documents
@@ -209,7 +211,7 @@ async def get_coverage_stats():
 
 
 @router.get("/hitl-performance", response_model=HitlPerformanceResponse)
-async def get_hitl_performance():
+async def get_hitl_performance(_auth=require_permission("dashboard:view")):
     """Get HITL gate decision performance metrics."""
     async with get_session() as session:
         result = await session.execute(

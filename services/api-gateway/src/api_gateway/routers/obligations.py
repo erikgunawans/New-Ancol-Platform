@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import ObligationRecord
-from ancol_common.db.repository import fulfill_obligation
+from ancol_common.db.repository import check_obligation_deadlines, fulfill_obligation
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -74,6 +75,7 @@ def _obligation_to_response(o: ObligationRecord) -> ObligationResponse:
 
 @router.get("", response_model=ObligationListResponse)
 async def list_obligations_endpoint(
+    _auth=require_permission("obligations:list"),
     contract_id: str | None = Query(None),
     status: str | None = Query(None),
     limit: int = Query(50, le=200),
@@ -108,7 +110,10 @@ async def list_obligations_endpoint(
 
 
 @router.get("/upcoming")
-async def get_upcoming_obligations(days: int = Query(30, le=90)):
+async def get_upcoming_obligations(
+    _auth=require_permission("obligations:list"),
+    days: int = Query(30, le=90),
+):
     """Get obligations due within N days."""
     from sqlalchemy import select
 
@@ -133,8 +138,21 @@ async def get_upcoming_obligations(days: int = Query(30, le=90)):
     }
 
 
+@router.post("/check-deadlines")
+async def check_deadlines_endpoint():
+    """Run obligation status transitions — called by Cloud Scheduler daily."""
+    async with get_session() as session:
+        summary = await check_obligation_deadlines(session)
+
+    return {
+        "status": "ok",
+        **summary,
+        "checked_at": datetime.now(UTC).isoformat(),
+    }
+
+
 @router.get("/{obligation_id}", response_model=ObligationResponse)
-async def get_obligation(obligation_id: str):
+async def get_obligation(obligation_id: str, _auth=require_permission("obligations:list")):
     """Get a single obligation by ID."""
     import uuid
 
@@ -142,9 +160,7 @@ async def get_obligation(obligation_id: str):
 
     async with get_session() as session:
         result = await session.execute(
-            select(ObligationRecord).where(
-                ObligationRecord.id == uuid.UUID(obligation_id)
-            )
+            select(ObligationRecord).where(ObligationRecord.id == uuid.UUID(obligation_id))
         )
         obligation = result.scalar_one_or_none()
         if not obligation:
@@ -153,7 +169,11 @@ async def get_obligation(obligation_id: str):
 
 
 @router.post("/{obligation_id}/fulfill")
-async def fulfill_obligation_endpoint(obligation_id: str, body: FulfillRequest):
+async def fulfill_obligation_endpoint(
+    obligation_id: str,
+    body: FulfillRequest,
+    _auth=require_permission("obligations:fulfill"),
+):
     """Mark an obligation as fulfilled."""
     async with get_session() as session:
         success = await fulfill_obligation(
@@ -168,7 +188,11 @@ async def fulfill_obligation_endpoint(obligation_id: str, body: FulfillRequest):
 
 
 @router.post("/{obligation_id}/waive")
-async def waive_obligation(obligation_id: str, body: WaiveRequest):
+async def waive_obligation(
+    obligation_id: str,
+    body: WaiveRequest,
+    _auth=require_permission("obligations:fulfill"),
+):
     """Waive an obligation (requires approval)."""
     import uuid
 
@@ -176,9 +200,7 @@ async def waive_obligation(obligation_id: str, body: WaiveRequest):
 
     async with get_session() as session:
         result = await session.execute(
-            select(ObligationRecord).where(
-                ObligationRecord.id == uuid.UUID(obligation_id)
-            )
+            select(ObligationRecord).where(ObligationRecord.id == uuid.UUID(obligation_id))
         )
         obligation = result.scalar_one_or_none()
         if not obligation:

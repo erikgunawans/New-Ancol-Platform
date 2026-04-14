@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from pathlib import PurePosixPath
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import Contract
@@ -78,6 +79,7 @@ def _contract_to_response(c: Contract) -> ContractResponse:
 
 @router.post("", response_model=ContractResponse)
 async def upload_contract(
+    _auth=require_permission("contracts:create"),
     file: UploadFile = File(...),
     title: str = Form(...),
     contract_type: str = Form("vendor"),
@@ -109,9 +111,7 @@ async def upload_contract(
     blob_name = f"uploads/{contract_id}/{safe_filename}"
     blob = bucket.blob(blob_name)
     blob.metadata = {"contract_id": contract_id, "uploaded_by": uploaded_by}
-    blob.upload_from_string(
-        content, content_type=file.content_type or "application/octet-stream"
-    )
+    blob.upload_from_string(content, content_type=file.content_type or "application/octet-stream")
 
     gcs_raw_uri = f"gs://{settings.bucket_contracts}/{blob_name}"
 
@@ -147,6 +147,7 @@ async def upload_contract(
 
 @router.get("", response_model=ContractListResponse)
 async def list_contracts_endpoint(
+    _auth=require_permission("contracts:list"),
     status: str | None = Query(None),
     contract_type: str | None = Query(None),
     limit: int = Query(50, le=200),
@@ -180,7 +181,7 @@ async def list_contracts_endpoint(
 
 
 @router.get("/{contract_id}", response_model=ContractResponse)
-async def get_contract(contract_id: str):
+async def get_contract(contract_id: str, _auth=require_permission("contracts:list")):
     """Get a single contract by ID."""
     async with get_session() as session:
         contract = await get_contract_by_id(session, contract_id)
@@ -190,7 +191,11 @@ async def get_contract(contract_id: str):
 
 
 @router.patch("/{contract_id}", response_model=ContractResponse)
-async def update_contract(contract_id: str, body: ContractUpdateRequest):
+async def update_contract(
+    contract_id: str,
+    body: ContractUpdateRequest,
+    _auth=require_permission("contracts:review"),
+):
     """Update contract metadata."""
     async with get_session() as session:
         contract = await get_contract_by_id(session, contract_id)
@@ -205,7 +210,11 @@ async def update_contract(contract_id: str, body: ContractUpdateRequest):
 
 
 @router.post("/{contract_id}/status")
-async def transition_status(contract_id: str, body: StatusTransitionRequest):
+async def transition_status(
+    contract_id: str,
+    body: StatusTransitionRequest,
+    _auth=require_permission("contracts:review"),
+):
     """Transition contract to a new lifecycle status."""
     async with get_session() as session:
         success = await transition_contract_status(
@@ -220,7 +229,7 @@ async def transition_status(contract_id: str, body: StatusTransitionRequest):
 
 
 @router.get("/{contract_id}/clauses")
-async def get_contract_clauses(contract_id: str):
+async def get_contract_clauses(contract_id: str, _auth=require_permission("contracts:list")):
     """Get extracted clauses for a contract."""
     from ancol_common.db.models import ContractClauseRecord
 
@@ -257,7 +266,7 @@ async def get_contract_clauses(contract_id: str):
 
 
 @router.get("/{contract_id}/risk")
-async def get_contract_risk(contract_id: str):
+async def get_contract_risk(contract_id: str, _auth=require_permission("contracts:list")):
     """Get risk analysis for a contract."""
     async with get_session() as session:
         contract = await get_contract_by_id(session, contract_id)
@@ -273,7 +282,7 @@ async def get_contract_risk(contract_id: str):
 
 
 @router.get("/{contract_id}/download")
-async def download_contract(contract_id: str):
+async def download_contract(contract_id: str, _auth=require_permission("contracts:list")):
     """Get a signed download URL for the contract document."""
     from ancol_common.utils import get_gcs_client, parse_gcs_uri
 

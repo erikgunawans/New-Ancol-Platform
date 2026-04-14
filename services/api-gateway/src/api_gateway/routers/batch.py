@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import BatchJob, Document
 from ancol_common.db.repository import (
@@ -55,7 +56,7 @@ def _job_to_response(job: BatchJob) -> BatchJobResponse:
 
 
 @router.post("", response_model=BatchJobResponse, status_code=201)
-async def create_batch(body: BatchJobCreate):
+async def create_batch(body: BatchJobCreate, _auth=require_permission("documents:upload")):
     """Create a new batch job with a list of document IDs."""
     # Validate all document IDs exist
     async with get_session() as session:
@@ -84,6 +85,7 @@ async def create_batch(body: BatchJobCreate):
 
 @router.get("", response_model=BatchJobListResponse)
 async def list_batch_jobs(
+    _auth=require_permission("documents:upload"),
     status: str | None = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
@@ -110,7 +112,7 @@ async def list_batch_jobs(
 
 
 @router.get("/{job_id}", response_model=BatchJobDetail)
-async def get_batch_detail(job_id: str):
+async def get_batch_detail(job_id: str, _auth=require_permission("documents:upload")):
     """Get batch job detail with item breakdown."""
     async with get_session() as session:
         job = await get_batch_job(session, job_id)
@@ -153,7 +155,7 @@ async def get_batch_detail(job_id: str):
 
 
 @router.post("/{job_id}/pause")
-async def pause_batch(job_id: str):
+async def pause_batch(job_id: str, _auth=require_permission("documents:upload")):
     """Pause a running batch job."""
     async with get_session() as session:
         success = await transition_batch_status(session, job_id, "paused")
@@ -163,7 +165,7 @@ async def pause_batch(job_id: str):
 
 
 @router.post("/{job_id}/resume")
-async def resume_batch(job_id: str):
+async def resume_batch(job_id: str, _auth=require_permission("documents:upload")):
     """Resume a paused batch job."""
     async with get_session() as session:
         job = await get_batch_job(session, job_id)

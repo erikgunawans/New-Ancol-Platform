@@ -28,6 +28,13 @@ ROLE_PERMISSIONS: dict[str, set[UserRole]] = {
     "hitl:gate_2": {UserRole.INTERNAL_AUDITOR, UserRole.LEGAL_COMPLIANCE, UserRole.ADMIN},
     "hitl:gate_3": {UserRole.INTERNAL_AUDITOR, UserRole.ADMIN},
     "hitl:gate_4_audit": {UserRole.INTERNAL_AUDITOR, UserRole.ADMIN},
+    # Union permission for HITL decide endpoint (any role that can approve at least one gate)
+    "hitl:decide": {
+        UserRole.CORP_SECRETARY,
+        UserRole.INTERNAL_AUDITOR,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.ADMIN,
+    },
     # Komisaris
     "dashboard:view": {
         UserRole.KOMISARIS,

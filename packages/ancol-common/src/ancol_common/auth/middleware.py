@@ -20,7 +20,14 @@ from ancol_common.db.repository import get_user_by_email
 logger = logging.getLogger(__name__)
 
 # Paths that skip auth
-PUBLIC_PATHS = {"/health", "/api", "/docs", "/openapi.json", "/redoc"}
+PUBLIC_PATHS = {
+    "/health",
+    "/api",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/api/obligations/check-deadlines",
+}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

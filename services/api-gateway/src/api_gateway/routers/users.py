@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import User
 from fastapi import APIRouter, HTTPException
@@ -30,7 +31,11 @@ class UserListResponse(BaseModel):
 
 
 @router.get("", response_model=UserListResponse)
-async def list_users(role: str | None = None, active_only: bool = True):
+async def list_users(
+    _auth=require_permission("audit_trail:view"),
+    role: str | None = None,
+    active_only: bool = True,
+):
     """List users with optional role filter."""
     async with get_session() as session:
         query = select(User).order_by(User.display_name)
@@ -60,7 +65,7 @@ async def list_users(role: str | None = None, active_only: bool = True):
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-async def get_user(user_id: str):
+async def get_user(user_id: str, _auth=require_permission("audit_trail:view")):
     """Get a single user."""
     async with get_session() as session:
         user = await session.get(User, uuid.UUID(user_id))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import Document, Report
 from fastapi import APIRouter, HTTPException, Query
@@ -53,6 +54,7 @@ class ReportDetail(BaseModel):
 
 @router.get("", response_model=ReportListResponse)
 async def list_reports(
+    _auth=require_permission("reports:view_approved"),
     approved_only: bool = Query(False),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
@@ -92,7 +94,7 @@ async def list_reports(
 
 
 @router.get("/{report_id}", response_model=ReportDetail)
-async def get_report(report_id: str):
+async def get_report(report_id: str, _auth=require_permission("reports:view_approved")):
     """Get a single report with full data."""
     async with get_session() as session:
         report = await session.get(Report, uuid.UUID(report_id))
@@ -118,7 +120,11 @@ async def get_report(report_id: str):
 
 
 @router.get("/{report_id}/download/{format}")
-async def download_report(report_id: str, format: str):
+async def download_report(
+    report_id: str,
+    format: str,
+    _auth=require_permission("reports:view_approved"),
+):
     """Generate a signed URL for PDF or Excel download."""
     if format not in ("pdf", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'pdf' or 'excel'")

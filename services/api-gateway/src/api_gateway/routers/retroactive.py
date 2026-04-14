@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import (
     Document,
@@ -106,7 +107,7 @@ async def _find_affected_documents(
 
 
 @router.post("/scan", response_model=ImpactAssessment)
-async def scan_impact(body: ImpactScanRequest):
+async def scan_impact(body: ImpactScanRequest, _auth=require_permission("corpus:search")):
     """Scan for documents affected by a regulation change."""
     reg_title, affected, _ = await _find_affected_documents(body)
 
@@ -119,7 +120,7 @@ async def scan_impact(body: ImpactScanRequest):
 
 
 @router.post("/scan-and-reprocess", response_model=ImpactAssessment)
-async def scan_and_reprocess(body: ImpactScanRequest):
+async def scan_and_reprocess(body: ImpactScanRequest, _auth=require_permission("corpus:search")):
     """Scan for affected documents and create a batch job to re-process them."""
     reg_title, affected, doc_ids = await _find_affected_documents(body)
 

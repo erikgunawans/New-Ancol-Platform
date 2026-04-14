@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import MomTemplate
 from fastapi import APIRouter, HTTPException, Query
@@ -60,6 +61,7 @@ def _template_to_response(t: MomTemplate) -> TemplateResponse:
 
 @router.get("", response_model=TemplateListResponse)
 async def list_templates(
+    _auth=require_permission("documents:list"),
     mom_type: str | None = Query(None),
     active_only: bool = Query(True),
 ):
@@ -84,6 +86,7 @@ async def list_templates(
 
 @router.get("/resolve", response_model=TemplateResponse)
 async def resolve_template(
+    _auth=require_permission("documents:list"),
     mom_type: str = Query(..., description="MoM type: regular, circular, extraordinary"),
     meeting_date: date = Query(..., description="Meeting date to find the applicable template"),
 ):
@@ -126,7 +129,7 @@ async def resolve_template(
 
 
 @router.get("/timeline/{mom_type}", response_model=TemplateTimelineResponse)
-async def get_template_timeline(mom_type: str):
+async def get_template_timeline(mom_type: str, _auth=require_permission("documents:list")):
     """Get the version timeline for a MoM type — shows how templates evolved over time."""
     today = date.today()
 

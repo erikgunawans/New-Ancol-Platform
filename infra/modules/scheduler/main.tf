@@ -72,8 +72,8 @@ resource "google_cloud_scheduler_job" "obligation_check" {
   time_zone   = "Asia/Jakarta"
 
   http_target {
-    uri         = "${var.api_gateway_url}/api/obligations/upcoming?days=30"
-    http_method = "GET"
+    uri         = "${var.api_gateway_url}/api/obligations/check-deadlines"
+    http_method = "POST"
 
     oidc_token {
       service_account_email = var.invoker_service_account_email

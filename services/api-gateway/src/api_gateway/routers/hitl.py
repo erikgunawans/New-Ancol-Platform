@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import (
@@ -89,6 +90,7 @@ GATE_ENTITY_TYPE = {
 
 @router.get("/queue", response_model=HitlQueueResponse)
 async def get_review_queue(
+    _auth=require_permission("hitl:decide"),
     gate: str | None = Query(None),
     limit: int = Query(50, le=200),
 ):
@@ -122,7 +124,7 @@ async def get_review_queue(
 
 
 @router.get("/review/{document_id}", response_model=HitlReviewDetail)
-async def get_review_detail(document_id: str):
+async def get_review_detail(document_id: str, _auth=require_permission("hitl:decide")):
     """Get the AI output for a document pending HITL review."""
     async with get_session() as session:
         doc = await session.get(Document, uuid.UUID(document_id))
@@ -198,7 +200,11 @@ async def get_review_detail(document_id: str):
 
 
 @router.post("/decide/{document_id}", response_model=HitlDecisionResponse)
-async def submit_decision(document_id: str, body: HitlDecisionRequest):
+async def submit_decision(
+    document_id: str,
+    body: HitlDecisionRequest,
+    _auth=require_permission("hitl:decide"),
+):
     """Submit a HITL decision (approve/reject/modify)."""
     settings = get_settings()
 

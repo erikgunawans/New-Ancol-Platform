@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import AuditTrailRecord
 from fastapi import APIRouter, Query
@@ -32,6 +33,7 @@ class AuditListResponse(BaseModel):
 
 @router.get("", response_model=AuditListResponse)
 async def list_audit_entries(
+    _auth=require_permission("audit_trail:view"),
     resource_type: str | None = Query(None),
     resource_id: str | None = Query(None),
     actor_id: str | None = Query(None),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import Document
@@ -36,6 +37,7 @@ class DocumentListResponse(BaseModel):
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
+    _auth=require_permission("documents:upload"),
     file: UploadFile = File(...),
     mom_type: str = Form("regular"),
     meeting_date: str | None = Form(None),
@@ -110,6 +112,7 @@ async def upload_document(
 
 @router.get("", response_model=DocumentListResponse)
 async def list_documents(
+    _auth=require_permission("documents:list"),
     status: str | None = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
@@ -153,7 +156,7 @@ async def list_documents(
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
-async def get_document(document_id: str):
+async def get_document(document_id: str, _auth=require_permission("documents:list")):
     """Get a single document by ID."""
     async with get_session() as session:
         doc = await get_document_by_id(session, document_id)

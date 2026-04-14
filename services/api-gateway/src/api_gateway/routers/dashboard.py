@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import BatchJob, Document, Report
 from fastapi import APIRouter, Query
@@ -37,7 +38,7 @@ class DashboardTrendsResponse(BaseModel):
 
 
 @router.get("/stats", response_model=DashboardStats)
-async def get_dashboard_stats():
+async def get_dashboard_stats(_auth=require_permission("dashboard:view")):
     """Get aggregate compliance statistics."""
     async with get_session() as session:
         # Document counts by status
@@ -102,6 +103,7 @@ async def get_dashboard_stats():
 
 @router.get("/stats/trends", response_model=DashboardTrendsResponse)
 async def get_dashboard_trends(
+    _auth=require_permission("dashboard:view"),
     months: int = Query(6, ge=1, le=24),
 ):
     """Get monthly composite score trends for the Komisaris dashboard."""
