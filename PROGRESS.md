@@ -1,8 +1,8 @@
 # Ancol MoM Compliance System — Progress Tracker
 
-## Current State (as of 2026-04-14)
+## Current State (as of 2026-04-15)
 
-**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-2 COMPLETE.** ~390 source files, 250 unit tests passing across 9 services, 21 ORM tables. MoM compliance + Contract Lifecycle Management with AI extraction and smart drafting. RBAC enforced on all 46 API endpoints. 11 Cloud Run services, 14 frontend routes, 16 Terraform modules.
+**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-3 COMPLETE.** ~400 source files, 264 unit tests passing across 9 services, 21 ORM tables. MoM compliance + full Contract Lifecycle Management (extraction, drafting, Q&A RAG, obligation auto-extraction). RBAC enforced on all 46 API endpoints. 3-layer hybrid RAG for contracts. 11 Cloud Run services, 14 frontend routes, 17 Terraform modules.
 
 **Repository:** https://github.com/erikgunawans/New-Ancol-Platform (standalone repo)
 
@@ -588,6 +588,25 @@ New-Ancol-Platform/                    (~295 files)
 **Files created:** 11 new files (parser, prompt, engine, corpus JSON, seed script, tests)
 **Files modified:** `repository.py`, `extraction-agent/main.py`, `routers/drafting.py`
 **Tests:** 250 passing across 9 services (+10 extraction, +8 drafting). 0 lint errors.
+
+---
+
+### Session 18 — 2026-04-15
+
+**Scope:** CLM Phase 3 — Contract Q&A RAG + Obligation Auto-Extraction
+
+- **Design spec**: `docs/superpowers/specs/2026-04-14-clm-phase3-qa-rag-obligation-extraction-design.md`
+- **Contract Q&A RAG**: 3-layer hybrid retrieval — Vertex AI Search semantic clause search, Spanner Graph contract-regulation + contract-contract edge expansion, Cloud SQL exact lookups. Re-ranked results synthesized by Gemini 2.5 Pro. Bahasa Indonesia responses with clause number citations.
+- **Obligation Auto-Extraction**: Enhanced extraction prompt to identify obligations (renewal, payment, reporting, termination notice, deliverable, compliance filing) inline with clause parsing. Auto-creates `ObligationRecord` rows in same transaction.
+- **Regulation Mapping**: Gemini identifies applicable regulations during extraction (UUPT, POJK, etc.). Stored as Spanner Graph edges (GOVERNED_BY).
+- **Vertex AI Search**: New contracts datastore in Terraform (`ancol-contract-clauses`). Indexer pipeline indexes each extracted clause with structured metadata.
+- **Spanner Graph**: Contract nodes, ContractRegulation edges, ContractAmendment edges. GraphClient extended with `get_related_regulations_for_contract()` and `get_related_contracts()` (Spanner + Neo4j stub).
+- **Config**: New `vertex_search_contracts_datastore` setting. Added `google-cloud-discoveryengine` to gemini-agent deps.
+- **Tests**: Updated existing tests (MockGraphClient, contract tools) for new abstract methods and replaced Q&A stubs. 14 new tests total.
+
+**Files created:** 6 new files (contract_rag.py, contract_indexer.py, graph_seeder.py, search/__init__.py, test_obligation_extraction.py, test_contract_qa.py)
+**Files modified:** 16 files (schemas, config, prompts, parser, repository, main.py, graph_client, spanner/neo4j, tools, formatting, Terraform, pyproject.toml, existing tests)
+**Tests:** 264 passing across 9 services (+14 new). 0 lint errors.
 
 ---
 

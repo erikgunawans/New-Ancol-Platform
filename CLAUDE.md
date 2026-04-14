@@ -124,21 +124,21 @@ All agents share `packages/ancol-common/` which contains:
 
 ## Testing
 
-250 unit tests across 9 services (run locally). Each service tested individually:
-- extraction-agent: 19 tests (structural parser, contract clause extraction, risk scoring, endpoints)
+264 unit tests across 9 services (run locally). Each service tested individually:
+- extraction-agent: 25 tests (structural parser, contract extraction, obligation extraction, risk scoring)
 - legal-research-agent: 9 tests (citation validator, endpoints)
 - comparison-agent: 27 tests (5 red flag detectors, severity scoring)
 - reporting-agent: 16 tests (scorecard calc, PDF rendering)
-- api-gateway: 77 tests (health, CORS, RBAC enforcement, obligation transitions, drafting engine, contract state machine, schemas)
+- api-gateway: 77 tests (health, CORS, RBAC enforcement, obligation transitions, drafting engine, schemas)
 - batch-engine: 18 tests (rate limiter, status transitions, schemas, health)
 - email-ingest: 24 tests (filename detection, MoM type, date extraction, content type, health)
 - regulation-monitor: 20 tests (sources, relevance filter, date parsing, endpoints)
-- gemini-agent: 40 tests (webhook routing, upload flow, HITL tools, RAG orchestrator, graph client, formatting, contract tools)
+- gemini-agent: 48 tests (webhook routing, upload flow, HITL tools, RAG orchestrator, graph client, contract Q&A RAG, formatting)
 - document-processor: 7 tests (requires `google-cloud-documentai` — runs in CI only)
 
 ## Current State
 
-**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-2 COMPLETE.** ~390 files, 250 tests locally (257 total incl. CI-only). RBAC enforced on all 46 API endpoints. Contract extraction pipeline + smart drafting engine. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
+**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-3 COMPLETE.** ~400 files, 264 tests locally (271 total incl. CI-only). RBAC enforced on all 46 API endpoints. Contract extraction + smart drafting + Q&A RAG + obligation auto-extraction. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
 
 ## Gotchas
 
