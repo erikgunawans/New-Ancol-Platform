@@ -2,6 +2,24 @@
 
 All notable changes to the Ancol MoM Compliance System will be documented in this file.
 
+## [0.2.0.0] - 2026-04-15
+
+### Added
+- Progressive Web App (PWA) support: installable on mobile devices with offline fallback
+- Service worker with stale-while-revalidate caching for static assets and network-first for navigation
+- Push notification infrastructure: VAPID-based Web Push API subscription with backend storage
+- Notification center enhanced with push permission prompt, real-time in-app notification relay via service worker postMessage
+- Backend push subscription endpoints (`/api/notifications/subscribe`, `/unsubscribe`, `/subscriptions`) with RBAC enforcement
+- `notifications:manage` RBAC permission for all authenticated roles
+- Offline fallback page in Bahasa Indonesia
+
+### Fixed
+- Push subscription validates backend response before reporting success (rolls back on failure)
+- URL origin validation prevents javascript: URI injection from push payloads
+- Service worker skipWaiting moved inside waitUntil chain (prevents offline.html cache race)
+- Unsubscribe order corrected: server-first then local (prevents permanent desync)
+- Removed maximumScale: 1 viewport restriction (WCAG 1.4.4 accessibility violation)
+
 ## [0.1.0.0] - 2026-04-15
 
 ### Added
