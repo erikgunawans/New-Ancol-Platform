@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestPushSubscription:
     def test_subscribe_stores_subscription(self):
         from api_gateway.routers.notifications import _subscriptions
 
         _subscriptions.clear()
-        from fastapi.testclient import TestClient
-
         from api_gateway.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         sub_data = {
@@ -28,9 +25,8 @@ class TestPushSubscription:
         from api_gateway.routers.notifications import _subscriptions
 
         _subscriptions.clear()
-        from fastapi.testclient import TestClient
-
         from api_gateway.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         sub_data = {
@@ -45,12 +41,9 @@ class TestPushSubscription:
         from api_gateway.routers.notifications import _subscriptions
 
         _subscriptions.clear()
-        _subscriptions.append(
-            {"endpoint": "https://fcm.googleapis.com/test-789", "keys": {}}
-        )
-        from fastapi.testclient import TestClient
-
+        _subscriptions.append({"endpoint": "https://fcm.googleapis.com/test-789", "keys": {}})
         from api_gateway.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         response = client.post(
@@ -64,9 +57,8 @@ class TestPushSubscription:
         from api_gateway.routers.notifications import _subscriptions
 
         _subscriptions.clear()
-        from fastapi.testclient import TestClient
-
         from api_gateway.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         response = client.post(
@@ -81,9 +73,8 @@ class TestPushSubscription:
         _subscriptions.clear()
         _subscriptions.append({"endpoint": "https://test-1", "keys": {}})
         _subscriptions.append({"endpoint": "https://test-2", "keys": {}})
-        from fastapi.testclient import TestClient
-
         from api_gateway.main import app
+        from fastapi.testclient import TestClient
 
         client = TestClient(app)
         response = client.get("/api/notifications/subscriptions")
