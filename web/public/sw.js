@@ -1,12 +1,14 @@
 const CACHE_NAME = "pjaa-v1";
 const STATIC_ASSETS = ["/offline.html"];
 
-// Install: pre-cache offline fallback
+// Install: pre-cache offline fallback, then activate immediately
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 // Activate: clean old caches
@@ -52,7 +54,7 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-// Push notification handling
+// Push notification handling — show notification + relay to open tabs
 self.addEventListener("push", (event) => {
   let data = { title: "PJAA Compliance", body: "Notifikasi baru" };
   try {
@@ -61,21 +63,41 @@ self.addEventListener("push", (event) => {
     data.body = event.data?.text() || data.body;
   }
 
+  // Only allow relative URLs (same-origin)
+  const url = data.url && data.url.startsWith("/") ? data.url : "/scorecard";
+
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: "/icons/icon-192.svg",
-      badge: "/icons/icon-192.svg",
-      tag: data.tag || "default",
-      data: { url: data.url || "/scorecard" },
-    })
+    Promise.all([
+      self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: "/icons/icon-192.svg",
+        badge: "/icons/icon-192.svg",
+        tag: data.tag || "default",
+        data: { url },
+      }),
+      // Relay to open tabs for in-app notification display
+      self.clients
+        .matchAll({ includeUncontrolled: true, type: "window" })
+        .then((clients) =>
+          clients.forEach((client) =>
+            client.postMessage({
+              type: "push-notification",
+              title: data.title,
+              body: data.body,
+              url,
+            })
+          )
+        ),
+    ])
   );
 });
 
-// Notification click: open the app
+// Notification click: open the app (same-origin URLs only)
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/scorecard";
+  if (!url.startsWith("/")) return;
+
   event.waitUntil(
     self.clients.matchAll({ type: "window" }).then((clients) => {
       for (const client of clients) {

@@ -82,15 +82,19 @@ export function NotificationCenter() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
-    if (url) {
+    if (url && url.startsWith("/")) {
       router.push(url);
     }
     setOpen(false);
   }
 
   async function handleEnablePush() {
-    await subscribeToPush();
-    setPushStatus(getPermissionStatus());
+    try {
+      const sub = await subscribeToPush();
+      setPushStatus(sub ? "granted" : getPermissionStatus());
+    } catch {
+      setPushStatus(getPermissionStatus());
+    }
   }
 
   return (

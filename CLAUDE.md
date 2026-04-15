@@ -124,12 +124,12 @@ All agents share `packages/ancol-common/` which contains:
 
 ## Testing
 
-264 unit tests across 9 services (run locally). Each service tested individually:
+277 unit tests across 9 services (run locally). Each service tested individually:
 - extraction-agent: 25 tests (structural parser, contract extraction, obligation extraction, risk scoring)
 - legal-research-agent: 9 tests (citation validator, endpoints)
 - comparison-agent: 27 tests (5 red flag detectors, severity scoring)
 - reporting-agent: 16 tests (scorecard calc, PDF rendering)
-- api-gateway: 77 tests (health, CORS, RBAC enforcement, obligation transitions, drafting engine, schemas)
+- api-gateway: 90 tests (health, CORS, RBAC enforcement, obligation transitions, drafting engine, schemas, contract PDF)
 - batch-engine: 18 tests (rate limiter, status transitions, schemas, health)
 - email-ingest: 24 tests (filename detection, MoM type, date extraction, content type, health)
 - regulation-monitor: 20 tests (sources, relevance filter, date parsing, endpoints)
@@ -138,7 +138,7 @@ All agents share `packages/ancol-common/` which contains:
 
 ## Current State
 
-**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-3 COMPLETE.** ~400 files, 264 tests locally (271 total incl. CI-only). RBAC enforced on all 46 API endpoints. Contract extraction + smart drafting + Q&A RAG + obligation auto-extraction. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
+**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-4 COMPLETE.** v0.1.0.0. ~410 files, 277 tests locally (284 total incl. CI-only). RBAC enforced on all 47 API endpoints. Contract extraction + smart drafting + Q&A RAG + obligation auto-extraction + PDF generation + frontend detail/draft pages. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
 
 ## Gotchas
 
