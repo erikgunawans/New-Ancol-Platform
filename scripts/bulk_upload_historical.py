@@ -25,9 +25,7 @@ import uuid
 from pathlib import Path
 
 # Add shared package to path
-_COMMON_PATH = str(
-    Path(__file__).resolve().parent.parent / "packages" / "ancol-common" / "src"
-)
+_COMMON_PATH = str(Path(__file__).resolve().parent.parent / "packages" / "ancol-common" / "src")
 sys.path.insert(0, _COMMON_PATH)
 
 from ancol_common.utils import SYSTEM_USER_ID, detect_document_format, get_gcs_client  # noqa: E402
@@ -87,17 +85,19 @@ def upload_manifest(
             blob.upload_from_filename(file_path, content_type=content_type)
             print(f"  [{i}/{total}] Uploaded: {filename} -> {gcs_uri}")
 
-        records.append({
-            "document_id": doc_id,
-            "filename": filename,
-            "format": doc_format,
-            "file_size_bytes": file_size,
-            "gcs_raw_uri": gcs_uri,
-            "mom_type": mom_type,
-            "meeting_date": meeting_date,
-            "source": "historical-bulk-upload",
-            "uploaded_by": SYSTEM_USER_ID,
-        })
+        records.append(
+            {
+                "document_id": doc_id,
+                "filename": filename,
+                "format": doc_format,
+                "file_size_bytes": file_size,
+                "gcs_raw_uri": gcs_uri,
+                "mom_type": mom_type,
+                "meeting_date": meeting_date,
+                "source": "historical-bulk-upload",
+                "uploaded_by": SYSTEM_USER_ID,
+            }
+        )
 
     with open(output_path, "w", encoding="utf-8") as out:
         json.dump(records, out, indent=2, ensure_ascii=False)

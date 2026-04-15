@@ -39,9 +39,7 @@ async def test_upload_no_file_returns_error():
 async def test_upload_timeout_fallback():
     """When polling times out, returns async fallback message."""
     api = _mock_api()
-    api.get_document = AsyncMock(
-        return_value={"id": "doc-001", "status": "extracting"}
-    )
+    api.get_document = AsyncMock(return_value={"id": "doc-001", "status": "extracting"})
 
     user = {
         "id": "u-001",
@@ -54,9 +52,10 @@ async def test_upload_timeout_fallback():
         "mom_type": "regular",
     }
 
-    with patch(
-        "gemini_agent.tools.upload._POLL_INTERVAL_S", 0.01
-    ), patch("gemini_agent.tools.upload._MAX_POLL_ITERATIONS", 2):
+    with (
+        patch("gemini_agent.tools.upload._POLL_INTERVAL_S", 0.01),
+        patch("gemini_agent.tools.upload._MAX_POLL_ITERATIONS", 2),
+    ):
         result = await handle_upload_document(params, api, user)
 
     assert "doc-001" in result
@@ -100,9 +99,10 @@ async def test_upload_reaches_gate1():
         "mom_type": "regular",
     }
 
-    with patch(
-        "gemini_agent.tools.upload._POLL_INTERVAL_S", 0.01
-    ), patch("gemini_agent.tools.upload._MAX_POLL_ITERATIONS", 5):
+    with (
+        patch("gemini_agent.tools.upload._POLL_INTERVAL_S", 0.01),
+        patch("gemini_agent.tools.upload._MAX_POLL_ITERATIONS", 5),
+    ):
         result = await handle_upload_document(params, api, user)
 
     assert "Risalah.pdf" in result

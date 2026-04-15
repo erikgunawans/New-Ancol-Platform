@@ -235,9 +235,7 @@ async def webhook(request: Request):
     # Validate role-based access
     allowed = ROLE_TOOL_ACCESS.get(user_role, set())
     if tool_name not in allowed:
-        logger.warning(
-            "Access denied: role=%s tool=%s", user_role, tool_name
-        )
+        logger.warning("Access denied: role=%s tool=%s", user_role, tool_name)
         return JSONResponse(
             content={
                 "tool_response": {
@@ -262,10 +260,7 @@ async def webhook(request: Request):
             content={
                 "tool_response": {
                     "name": tool_name,
-                    "content": (
-                        "Terjadi kesalahan saat memproses permintaan. "
-                        "Silakan coba lagi."
-                    ),
+                    "content": ("Terjadi kesalahan saat memproses permintaan. Silakan coba lagi."),
                 }
             },
             status_code=200,

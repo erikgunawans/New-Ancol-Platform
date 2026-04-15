@@ -50,9 +50,14 @@ class TestClmRbacPermissions:
 
     def test_all_clm_permissions_exist(self):
         clm_perms = [
-            "contracts:create", "contracts:list", "contracts:review",
-            "contracts:approve", "obligations:list", "obligations:fulfill",
-            "drafting:generate", "drafting:manage_library",
+            "contracts:create",
+            "contracts:list",
+            "contracts:review",
+            "contracts:approve",
+            "obligations:list",
+            "obligations:fulfill",
+            "drafting:generate",
+            "drafting:manage_library",
         ]
         for perm in clm_perms:
             assert perm in ROLE_PERMISSIONS, f"Missing permission: {perm}"

@@ -53,6 +53,7 @@ def _get_content_type(filename: str) -> str:
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     return _EXTENSION_TO_CONTENT_TYPE.get(ext, "application/pdf")
 
+
 # Gmail label for processed emails
 PROCESSED_LABEL = "MoM-Processed"
 

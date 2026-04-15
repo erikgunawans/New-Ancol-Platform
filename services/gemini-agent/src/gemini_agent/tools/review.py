@@ -108,10 +108,7 @@ async def handle_submit_decision(
     if not document_id:
         return "Error: Harap berikan document_id."
     if decision not in ("approved", "rejected", "modified"):
-        return (
-            "Error: Keputusan harus salah satu dari: "
-            "`approved`, `rejected`, atau `modified`."
-        )
+        return "Error: Keputusan harus salah satu dari: `approved`, `rejected`, atau `modified`."
 
     reviewer_id: str = user.get("id", "")
     reviewer_role: str = user.get("role", "corp_secretary")

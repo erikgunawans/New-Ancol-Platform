@@ -28,9 +28,7 @@ from google.cloud import discoveryengine_v1 as discoveryengine
 
 def get_client(region: str) -> discoveryengine.DocumentServiceClient:
     """Create Discovery Engine document service client."""
-    client_options = ClientOptions(
-        api_endpoint=f"{region}-discoveryengine.googleapis.com"
-    )
+    client_options = ClientOptions(api_endpoint=f"{region}-discoveryengine.googleapis.com")
     return discoveryengine.DocumentServiceClient(client_options=client_options)
 
 
@@ -149,24 +147,34 @@ def upload_chunks(
             stats["files_processed"] += 1
             stats["documents_uploaded"] += uploaded
             stats["documents_failed"] += failed
-            stats["regulations"].append({
-                "regulation_id": reg_id,
-                "chunks": len(reg_chunks),
-                "uploaded": uploaded,
-                "failed": failed,
-            })
+            stats["regulations"].append(
+                {
+                    "regulation_id": reg_id,
+                    "chunks": len(reg_chunks),
+                    "uploaded": uploaded,
+                    "failed": failed,
+                }
+            )
 
     return stats
 
 
 def main():
     parser = argparse.ArgumentParser(description="Upload regulation chunks to Vertex AI Search")
-    parser.add_argument("--chunks-dir", type=Path, nargs="+", help="Directories containing .jsonl files")
-    parser.add_argument("--all", action="store_true", help="Upload from both internal/chunks and external/chunks")
+    parser.add_argument(
+        "--chunks-dir", type=Path, nargs="+", help="Directories containing .jsonl files"
+    )
+    parser.add_argument(
+        "--all", action="store_true", help="Upload from both internal/chunks and external/chunks"
+    )
     parser.add_argument("--project", default="ancol-mom-compliance", help="GCP project ID")
     parser.add_argument("--region", default="asia-southeast2", help="GCP region")
-    parser.add_argument("--datastore-id", default="regulatory-corpus", help="Vertex AI Search datastore ID")
-    parser.add_argument("--dry-run", action="store_true", help="Parse and validate without uploading")
+    parser.add_argument(
+        "--datastore-id", default="regulatory-corpus", help="Vertex AI Search datastore ID"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Parse and validate without uploading"
+    )
     args = parser.parse_args()
 
     corpus_root = Path(__file__).parent.parent

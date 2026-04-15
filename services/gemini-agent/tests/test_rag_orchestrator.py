@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from unittest.mock import patch
 
 import pytest
@@ -76,6 +77,10 @@ def test_get_graph_client_disabled():
         assert client is None
 
 
+@pytest.mark.skipif(
+    not importlib.util.find_spec("google.cloud.spanner"),
+    reason="google-cloud-spanner not installed",
+)
 def test_get_graph_client_spanner():
     """When GRAPH_BACKEND is spanner, returns SpannerGraphClient."""
     with patch.dict(

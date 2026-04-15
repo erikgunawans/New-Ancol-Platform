@@ -183,7 +183,8 @@ class Neo4jGraphClient(GraphClient):
         return row["status"] == "active" and int(row["supersede_count"]) == 0
 
     async def get_related_regulations_for_contract(
-        self, contract_id: str,
+        self,
+        contract_id: str,
     ) -> list[RegulationNode]:
         """Stub — Neo4j contract graph not implemented."""
         logger.info("Neo4j contract-regulation query not implemented, returning empty")

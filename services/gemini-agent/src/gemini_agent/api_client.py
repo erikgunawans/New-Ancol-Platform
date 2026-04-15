@@ -28,9 +28,9 @@ class ApiClient:
         base_url: str | None = None,
         timeout: float = _DEFAULT_TIMEOUT,
     ) -> None:
-        self._base_url = (
-            base_url or os.getenv("API_GATEWAY_URL", "http://localhost:8080")
-        ).rstrip("/")
+        self._base_url = (base_url or os.getenv("API_GATEWAY_URL", "http://localhost:8080")).rstrip(
+            "/"
+        )
         self._timeout = timeout
         self._environment = os.getenv("ENVIRONMENT", "dev")
         self._client: httpx.AsyncClient | None = None
@@ -114,9 +114,7 @@ class ApiClient:
                 )
                 await asyncio.sleep(wait)
 
-        raise RuntimeError(
-            f"API {method} {path} failed after {_MAX_RETRIES} retries"
-        ) from last_exc
+        raise RuntimeError(f"API {method} {path} failed after {_MAX_RETRIES} retries") from last_exc
 
     # -- Document endpoints --
 
@@ -218,9 +216,7 @@ class ApiClient:
 
     async def get_dashboard_trends(self, months: int = 6) -> dict:
         """GET /api/dashboard/stats/trends."""
-        return await self._request(
-            "GET", "/api/dashboard/stats/trends", params={"months": months}
-        )
+        return await self._request("GET", "/api/dashboard/stats/trends", params={"months": months})
 
     # -- Contract endpoints --
 
@@ -243,9 +239,7 @@ class ApiClient:
             data["contract_number"] = contract_number
 
         files = {"file": (filename, file_bytes, "application/octet-stream")}
-        return await self._request(
-            "POST", "/api/contracts", data=data, files=files, timeout=60.0
-        )
+        return await self._request("POST", "/api/contracts", data=data, files=files, timeout=60.0)
 
     async def get_contract(self, contract_id: str) -> dict:
         """GET /api/contracts/{id}."""
@@ -265,9 +259,7 @@ class ApiClient:
             params["contract_type"] = contract_type
         return await self._request("GET", "/api/contracts", params=params)
 
-    async def transition_contract_status(
-        self, contract_id: str, new_status: str
-    ) -> dict:
+    async def transition_contract_status(self, contract_id: str, new_status: str) -> dict:
         """POST /api/contracts/{id}/status."""
         return await self._request(
             "POST",
@@ -301,9 +293,7 @@ class ApiClient:
 
     async def get_upcoming_obligations(self, days: int = 30) -> dict:
         """GET /api/obligations/upcoming."""
-        return await self._request(
-            "GET", "/api/obligations/upcoming", params={"days": days}
-        )
+        return await self._request("GET", "/api/obligations/upcoming", params={"days": days})
 
     async def fulfill_obligation(
         self,
@@ -315,15 +305,11 @@ class ApiClient:
         body: dict[str, Any] = {"fulfilled_by": fulfilled_by}
         if evidence_gcs_uri:
             body["evidence_gcs_uri"] = evidence_gcs_uri
-        return await self._request(
-            "POST", f"/api/obligations/{obligation_id}/fulfill", json=body
-        )
+        return await self._request("POST", f"/api/obligations/{obligation_id}/fulfill", json=body)
 
     # -- Drafting endpoints --
 
-    async def get_draft_templates(
-        self, contract_type: str | None = None
-    ) -> dict:
+    async def get_draft_templates(self, contract_type: str | None = None) -> dict:
         """GET /api/drafting/templates."""
         params: dict[str, Any] = {}
         if contract_type:
@@ -345,6 +331,4 @@ class ApiClient:
             params["contract_type"] = contract_type
         if category:
             params["category"] = category
-        return await self._request(
-            "GET", "/api/drafting/clause-library", params=params
-        )
+        return await self._request("GET", "/api/drafting/clause-library", params=params)

@@ -48,8 +48,17 @@ class TestContractStateTransitions:
 
     def test_all_states_are_defined(self):
         expected_states = {
-            "draft", "pending_review", "in_review", "approved", "executed",
-            "active", "expiring", "expired", "terminated", "amended", "failed",
+            "draft",
+            "pending_review",
+            "in_review",
+            "approved",
+            "executed",
+            "active",
+            "expiring",
+            "expired",
+            "terminated",
+            "amended",
+            "failed",
         }
         assert set(CONTRACT_VALID_TRANSITIONS.keys()) == expected_states
 

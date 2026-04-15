@@ -21,9 +21,7 @@ class TestContractQaHandler:
 
     @pytest.mark.asyncio
     async def test_basic_question_returns_answer(self):
-        with patch(
-            "gemini_agent.tools.contract_qa.answer_contract_question"
-        ) as mock_rag:
+        with patch("gemini_agent.tools.contract_qa.answer_contract_question") as mock_rag:
             mock_rag.return_value = _mock_rag_result(
                 answer="Kontrak vendor memiliki klausul pembayaran NET 30.",
                 citations=[
@@ -51,9 +49,7 @@ class TestContractQaHandler:
 
     @pytest.mark.asyncio
     async def test_contract_specific_question(self):
-        with patch(
-            "gemini_agent.tools.contract_qa.answer_contract_question"
-        ) as mock_rag:
+        with patch("gemini_agent.tools.contract_qa.answer_contract_question") as mock_rag:
             mock_rag.return_value = _mock_rag_result()
 
             from gemini_agent.tools.contract_qa import handle_ask_contract_question
@@ -81,12 +77,8 @@ class TestContractQaHandler:
 
     @pytest.mark.asyncio
     async def test_no_results_shows_fallback(self):
-        with patch(
-            "gemini_agent.tools.contract_qa.answer_contract_question"
-        ) as mock_rag:
-            mock_rag.return_value = _mock_rag_result(
-                answer="Tidak ada informasi yang ditemukan."
-            )
+        with patch("gemini_agent.tools.contract_qa.answer_contract_question") as mock_rag:
+            mock_rag.return_value = _mock_rag_result(answer="Tidak ada informasi yang ditemukan.")
 
             from gemini_agent.tools.contract_qa import handle_ask_contract_question
 
