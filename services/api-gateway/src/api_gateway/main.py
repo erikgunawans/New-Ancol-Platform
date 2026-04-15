@@ -27,6 +27,7 @@ from .routers import (
     documents,
     drafting,
     hitl,
+    notifications,
     obligations,
     reports,
     retroactive,
@@ -79,6 +80,7 @@ app.include_router(retroactive.router, prefix="/api")
 app.include_router(contracts.router, prefix="/api")
 app.include_router(obligations.router, prefix="/api")
 app.include_router(drafting.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 
 @app.get("/health")
@@ -105,5 +107,6 @@ async def api_root():
             "contracts": "/api/contracts",
             "obligations": "/api/obligations",
             "drafting": "/api/drafting",
+            "notifications": "/api/notifications",
         },
     }
