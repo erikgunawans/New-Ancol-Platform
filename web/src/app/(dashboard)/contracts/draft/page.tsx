@@ -82,8 +82,8 @@ export default function DraftGeneratorPage() {
   );
   const [language, setLanguage] = useState<"id" | "en">("id");
   const [loading, setLoading] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
   const [result, setResult] = useState<DraftResult | null>(null);
+  const [pdfHtml, setPdfHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const validParties = parties.filter((p) => p.name.trim() !== "");
@@ -111,10 +111,15 @@ export default function DraftGeneratorPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setPdfHtml(null);
     try {
       const data = buildFormData();
-      const res = await generateDraft(data);
-      setResult(res);
+      const [draftRes, pdfRes] = await Promise.all([
+        generateDraft(data),
+        generateDraftPdf(data),
+      ]);
+      setResult(draftRes);
+      setPdfHtml(pdfRes.html);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal membuat draf");
     } finally {
@@ -122,21 +127,12 @@ export default function DraftGeneratorPage() {
     }
   }
 
-  async function handlePdfExport() {
-    setPdfLoading(true);
-    setError(null);
-    try {
-      const data = buildFormData();
-      const res = await generateDraftPdf(data);
-      const blob = new Blob([res.html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal membuat PDF");
-    } finally {
-      setPdfLoading(false);
-    }
+  function handlePdfExport() {
+    if (!pdfHtml) return;
+    const blob = new Blob([pdfHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   function updateParty(index: number, field: keyof PartyInput, value: string) {
@@ -341,14 +337,14 @@ export default function DraftGeneratorPage() {
             <button
               type="button"
               onClick={handlePdfExport}
-              disabled={pdfLoading}
+              disabled={!pdfHtml}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                pdfLoading
+                !pdfHtml
                   ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                   : "bg-green-600 hover:bg-green-700 text-white"
               }`}
             >
-              {pdfLoading ? "Memproses..." : "Buka sebagai PDF"}
+              Buka sebagai PDF
             </button>
           </div>
 

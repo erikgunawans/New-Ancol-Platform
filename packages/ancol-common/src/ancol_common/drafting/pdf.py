@@ -89,7 +89,7 @@ CONTRACT_CSS = (
     ".badge-low { background-color: #e8f5e9; color: #2e7d32; }\n"
     ".badge-medium { background-color: #fff3e0; color: #ef6c00; }\n"
     ".badge-high { background-color: #ffebee; color: #c62828; }\n"
-    ".clause-text { font-size: 10pt; line-height: 1.5; }\n"
+    ".clause-text { font-size: 10pt; line-height: 1.5; white-space: pre-wrap; }\n"
     ".risk-section { margin-top: 20px; }\n"
     ".risk-item {\n"
     "    border-left: 3px solid #ef6c00; padding: 8px 12px;\n"

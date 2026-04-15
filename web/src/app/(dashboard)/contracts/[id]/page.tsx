@@ -25,6 +25,7 @@ export default function ContractDetailPage() {
   const [contract, setContract] = useState<ContractSummary | null>(null);
   const [clauses, setClauses] = useState<ContractClauseItem[]>([]);
   const [obligations, setObligations] = useState<ObligationSummary[]>([]);
+  const [obligationsDenied, setObligationsDenied] = useState(false);
   const [risk, setRisk] = useState<{ risk_level: string; risk_score: number | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -37,7 +38,10 @@ export default function ContractDetailPage() {
     Promise.all([
       getContract(id),
       getContractClauses(id).catch(() => ({ clauses: [] as ContractClauseItem[] })),
-      getObligations(id).catch(() => ({ obligations: [] as ObligationSummary[] })),
+      getObligations(id).catch((err) => {
+        if (err instanceof Error && err.message.includes("403")) setObligationsDenied(true);
+        return { obligations: [] as ObligationSummary[] };
+      }),
       getContractRisk(id).catch(() => null),
     ])
       .then(([contractData, clausesData, obligationsData, riskData]) => {
@@ -178,7 +182,7 @@ export default function ContractDetailPage() {
         <nav className="flex gap-6">
           {([
             { key: "clauses" as Tab, label: "Klausul", count: clauses.length },
-            { key: "obligations" as Tab, label: "Kewajiban", count: obligations.length },
+            { key: "obligations" as Tab, label: "Kewajiban", count: obligationsDenied ? undefined : obligations.length },
             { key: "risk" as Tab, label: "Analisis Risiko", count: highRiskClauses.length },
           ]).map((tab) => (
             <button
@@ -253,7 +257,11 @@ export default function ContractDetailPage() {
 
       {activeTab === "obligations" && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {obligations.length === 0 ? (
+          {obligationsDenied ? (
+            <div className="p-12 text-center text-gray-400">
+              Anda tidak memiliki akses untuk melihat kewajiban kontrak ini
+            </div>
+          ) : obligations.length === 0 ? (
             <div className="p-12 text-center text-gray-400">
               Belum ada kewajiban untuk kontrak ini
             </div>
