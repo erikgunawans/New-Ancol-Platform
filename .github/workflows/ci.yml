@@ -39,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e "packages/ancol-common[test]"
-          pip install pytest pytest-asyncio httpx
+          pip install pytest pytest-asyncio httpx python-multipart google-api-python-client google-auth
       - name: Run tests per service
         run: |
           FAILED=0
