@@ -36,6 +36,7 @@ from pathlib import Path
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RegulationNode:
     """A regulation to insert into the Regulations table."""
@@ -102,31 +103,50 @@ ISSUER_MAP: dict[str, tuple[str, int]] = {
 # Keywords for domain detection on clause content
 DOMAIN_KEYWORDS: dict[str, list[str]] = {
     "quorum": [
-        "kuorum", "quorum", "lebih dari 1/2", "satu per dua",
-        "jumlah anggota", "hadir atau diwakili",
+        "kuorum",
+        "quorum",
+        "lebih dari 1/2",
+        "satu per dua",
+        "jumlah anggota",
+        "hadir atau diwakili",
     ],
     "conflict_of_interest": [
-        "benturan kepentingan", "conflict of interest",
-        "kepentingan ekonomis pribadi", "afiliasi",
+        "benturan kepentingan",
+        "conflict of interest",
+        "kepentingan ekonomis pribadi",
+        "afiliasi",
         "transaksi benturan",
     ],
     "reporting": [
-        "pelaporan", "laporan tahunan", "laporan keuangan",
-        "annual report", "wajib menyampaikan laporan",
-        "pengungkapan", "keterbukaan informasi",
+        "pelaporan",
+        "laporan tahunan",
+        "laporan keuangan",
+        "annual report",
+        "wajib menyampaikan laporan",
+        "pengungkapan",
+        "keterbukaan informasi",
     ],
     "signatures": [
-        "ditandatangani", "tanda tangan", "risalah rapat",
-        "menandatangani", "penandatanganan",
+        "ditandatangani",
+        "tanda tangan",
+        "risalah rapat",
+        "menandatangani",
+        "penandatanganan",
     ],
     "governance": [
-        "tata kelola", "good corporate governance", "gcg",
-        "komisaris independen", "komite audit",
-        "organ perseroan", "pengawasan",
+        "tata kelola",
+        "good corporate governance",
+        "gcg",
+        "komisaris independen",
+        "komite audit",
+        "organ perseroan",
+        "pengawasan",
     ],
     "rpt": [
-        "transaksi afiliasi", "transaksi pihak berelasi",
-        "related party", "pihak berelasi",
+        "transaksi afiliasi",
+        "transaksi pihak berelasi",
+        "related party",
+        "pihak berelasi",
         "transaksi material",
     ],
 }
@@ -136,7 +156,8 @@ REGULATION_ID_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"UU[\s-]*(?:No\.?\s*)?(\d+)[\s/]*(?:Tahun\s*)?(\d{4})", re.IGNORECASE),
     re.compile(r"PP[\s-]*(?:No\.?\s*)?(\d+)[\s/]*(?:Tahun\s*)?(\d{4})", re.IGNORECASE),
     re.compile(
-        r"POJK[\s-]*(?:No\.?\s*)?(\d+)/POJK\.\d+/(\d{4})", re.IGNORECASE,
+        r"POJK[\s-]*(?:No\.?\s*)?(\d+)/POJK\.\d+/(\d{4})",
+        re.IGNORECASE,
     ),
     re.compile(
         r"Permen[\s-]*ATR[\s/]*(?:BPN\s*)?(?:No\.?\s*)?(\d+)[\s/]*(?:Tahun\s*)?(\d{4})",
@@ -149,6 +170,7 @@ REGULATION_ID_PATTERNS: list[re.Pattern[str]] = [
 # ---------------------------------------------------------------------------
 # Frontmatter parsing (reuses pattern from chunk_regulations.py)
 # ---------------------------------------------------------------------------
+
 
 def parse_frontmatter(text: str) -> dict[str, str]:
     """Extract YAML-like frontmatter from a markdown file."""
@@ -240,7 +262,9 @@ def extract_regulation_ids_from_text(text: str) -> list[str]:
 
 
 def detect_amends(
-    full_text: str, source_id: str, effective_date: str | None,
+    full_text: str,
+    source_id: str,
+    effective_date: str | None,
 ) -> list[dict[str, str]]:
     """Detect AMENDS relationships from regulation text."""
     edges: list[dict[str, str]] = []
@@ -250,17 +274,21 @@ def detect_amends(
             target_ids = extract_regulation_ids_from_text(fragment)
             for tid in target_ids:
                 if tid != source_id:
-                    edges.append({
-                        "source_id": source_id,
-                        "target_id": tid,
-                        "effective_date": effective_date or "",
-                        "change_type": "amendment",
-                    })
+                    edges.append(
+                        {
+                            "source_id": source_id,
+                            "target_id": tid,
+                            "effective_date": effective_date or "",
+                            "change_type": "amendment",
+                        }
+                    )
     return edges
 
 
 def detect_supersedes(
-    full_text: str, source_id: str, effective_date: str | None,
+    full_text: str,
+    source_id: str,
+    effective_date: str | None,
 ) -> list[dict[str, str]]:
     """Detect SUPERSEDES relationships from regulation text."""
     edges: list[dict[str, str]] = []
@@ -270,11 +298,13 @@ def detect_supersedes(
             target_ids = extract_regulation_ids_from_text(fragment)
             for tid in target_ids:
                 if tid != source_id:
-                    edges.append({
-                        "source_id": source_id,
-                        "target_id": tid,
-                        "effective_date": effective_date or "",
-                    })
+                    edges.append(
+                        {
+                            "source_id": source_id,
+                            "target_id": tid,
+                            "effective_date": effective_date or "",
+                        }
+                    )
     return edges
 
 
@@ -299,17 +329,20 @@ def detect_references(
             continue
         target_clause = all_clause_ids.get(ref_id)
         if target_clause:
-            edges.append({
-                "source_clause_id": clause_id,
-                "target_clause_id": target_clause,
-                "reference_type": "cites",
-            })
+            edges.append(
+                {
+                    "source_clause_id": clause_id,
+                    "target_clause_id": target_clause,
+                    "reference_type": "cites",
+                }
+            )
     return edges
 
 
 # ---------------------------------------------------------------------------
 # Corpus reading
 # ---------------------------------------------------------------------------
+
 
 def read_regulation_files(corpus_root: Path) -> GraphData:
     """Read all regulation markdown and chunk files, build graph data."""
@@ -354,11 +387,13 @@ def read_regulation_files(corpus_root: Path) -> GraphData:
             # Add regulation-level domain
             if domain:
                 data.domains.add(domain)
-                data.regulation_domains.append({
-                    "regulation_id": reg_id,
-                    "domain_name": domain,
-                    "scope": "primary",
-                })
+                data.regulation_domains.append(
+                    {
+                        "regulation_id": reg_id,
+                        "domain_name": domain,
+                        "scope": "primary",
+                    }
+                )
 
             # Detect amends/supersedes from full text
             data.amends.extend(detect_amends(text, reg_id, effective_date))
@@ -369,12 +404,20 @@ def read_regulation_files(corpus_root: Path) -> GraphData:
             jsonl_file = chunks_dir / f"{reg_id}.jsonl"
             if jsonl_file.exists():
                 _read_clauses_from_jsonl(
-                    jsonl_file, reg_id, data, first_clause, clause_texts,
+                    jsonl_file,
+                    reg_id,
+                    data,
+                    first_clause,
+                    clause_texts,
                 )
             else:
                 # Fall back: extract clauses from markdown H2 headers
                 _extract_clauses_from_markdown(
-                    text, reg_id, data, first_clause, clause_texts,
+                    text,
+                    reg_id,
+                    data,
+                    first_clause,
+                    clause_texts,
                 )
 
     # Second pass: detect cross-regulation REFERENCES at clause level
@@ -426,10 +469,12 @@ def _read_clauses_from_jsonl(
             # Register domains
             for d in clause_domains:
                 data.domains.add(d)
-                data.clause_domains.append({
-                    "clause_id": clause_id,
-                    "domain_name": d,
-                })
+                data.clause_domains.append(
+                    {
+                        "clause_id": clause_id,
+                        "domain_name": d,
+                    }
+                )
 
             clause_texts.append((clause_id, content, reg_id))
 
@@ -481,10 +526,12 @@ def _extract_clauses_from_markdown(
 
         for d in clause_domains:
             data.domains.add(d)
-            data.clause_domains.append({
-                "clause_id": clause_id,
-                "domain_name": d,
-            })
+            data.clause_domains.append(
+                {
+                    "clause_id": clause_id,
+                    "domain_name": d,
+                }
+            )
 
         clause_texts.append((clause_id, content, reg_id))
 
@@ -492,6 +539,7 @@ def _extract_clauses_from_markdown(
 # ---------------------------------------------------------------------------
 # Spanner insertion
 # ---------------------------------------------------------------------------
+
 
 def insert_to_spanner(
     data: GraphData,
@@ -560,10 +608,7 @@ def insert_to_spanner(
             transaction.insert(
                 table="ClauseDomains",
                 columns=["clause_id", "domain_name"],
-                values=[
-                    [cd["clause_id"], cd["domain_name"]]
-                    for cd in data.clause_domains
-                ],
+                values=[[cd["clause_id"], cd["domain_name"]] for cd in data.clause_domains],
             )
 
         # Insert Amends edges
@@ -583,8 +628,7 @@ def insert_to_spanner(
                 table="Supersedes",
                 columns=["source_id", "target_id", "effective_date"],
                 values=[
-                    [s["source_id"], s["target_id"], s["effective_date"]]
-                    for s in data.supersedes
+                    [s["source_id"], s["target_id"], s["effective_date"]] for s in data.supersedes
                 ],
             )
 
@@ -605,6 +649,7 @@ def insert_to_spanner(
 # ---------------------------------------------------------------------------
 # Dry-run printer
 # ---------------------------------------------------------------------------
+
 
 def print_dry_run(data: GraphData) -> None:
     """Print summary of what would be inserted."""
@@ -661,6 +706,7 @@ def print_dry_run(data: GraphData) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Seed Spanner RegulationGraph from corpus regulation files",
@@ -700,9 +746,7 @@ def main() -> None:
         print_dry_run(data)
         return
 
-    print(
-        f"Inserting into Spanner: {args.project}/{args.instance}/{args.database}"
-    )
+    print(f"Inserting into Spanner: {args.project}/{args.instance}/{args.database}")
     print(
         f"  {len(data.regulations)} regulations, "
         f"{len(data.clauses)} clauses, "
@@ -713,8 +757,7 @@ def main() -> None:
         insert_to_spanner(data, args.instance, args.database, args.project)
     except ImportError:
         print(
-            "ERROR: google-cloud-spanner is not installed.\n"
-            "  pip install google-cloud-spanner",
+            "ERROR: google-cloud-spanner is not installed.\n  pip install google-cloud-spanner",
             file=sys.stderr,
         )
         sys.exit(1)

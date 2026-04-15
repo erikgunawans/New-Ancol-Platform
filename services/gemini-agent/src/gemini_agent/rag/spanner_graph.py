@@ -190,7 +190,8 @@ class SpannerGraphClient(GraphClient):
         return row["status"] == "active" and int(row["supersede_count"]) == 0
 
     async def get_related_regulations_for_contract(
-        self, contract_id: str,
+        self,
+        contract_id: str,
     ) -> list[RegulationNode]:
         """Return regulations linked to a contract via GOVERNED_BY edges."""
         gql = """

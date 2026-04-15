@@ -94,8 +94,7 @@ async def handle_upload_document(
 
         if status in ("failed", "rejected"):
             return (
-                f"Dokumen **{filename}** gagal diproses.\n"
-                f"Status: `{status}` | ID: `{document_id}`"
+                f"Dokumen **{filename}** gagal diproses.\nStatus: `{status}` | ID: `{document_id}`"
             )
 
     # Timeout — processing is still ongoing

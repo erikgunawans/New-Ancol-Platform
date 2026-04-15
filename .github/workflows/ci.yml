@@ -15,8 +15,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check packages/ services/
-      - run: ruff format --check packages/ services/
+      - run: ruff check packages/ services/ scripts/ corpus/scripts/
+      - run: ruff format --check packages/ services/ scripts/ corpus/scripts/
 
   lint-web:
     runs-on: ubuntu-latest
@@ -25,52 +25,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: |
-          if [ -f web/package.json ]; then
-            cd web && npm ci && npm run lint
-          else
-            echo "Web project not yet initialized — skipping"
-          fi
+      - run: cd web && npm ci && npm run lint
 
   test-python:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: ancol_test
-          POSTGRES_USER: ancol
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_NAME: ancol_test
-      DB_USER: ancol
-      DB_PASSWORD: test
       ENVIRONMENT: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ancol-common
-        run: pip install -e "packages/ancol-common[test]"
-      - name: Install service packages
+      - name: Install dependencies
         run: |
-          for svc in services/*/; do
-            if [ -f "$svc/pyproject.toml" ]; then
-              pip install -e "$svc[test]" 2>/dev/null || pip install -e "$svc"
-            fi
+          pip install -e "packages/ancol-common[test]"
+          pip install pytest pytest-asyncio httpx
+      - name: Run tests per service
+        run: |
+          FAILED=0
+          for svc in extraction-agent legal-research-agent comparison-agent reporting-agent api-gateway batch-engine email-ingest regulation-monitor gemini-agent; do
+            echo "=== Testing $svc ==="
+            PYTHONPATH=packages/ancol-common/src:services/$svc/src \
+              python3 -m pytest services/$svc/tests/ -q --tb=short || FAILED=1
           done
-      - name: Run tests
-        run: pytest --tb=short -q
+          exit $FAILED
 
   terraform-validate:
     runs-on: ubuntu-latest

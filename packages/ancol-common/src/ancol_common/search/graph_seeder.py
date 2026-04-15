@@ -103,6 +103,8 @@ def _seed_sync(
 
     logger.info(
         "Graph seeded: contract=%s, nodes=%d, edges=%d",
-        contract_id, nodes_created, edges_created,
+        contract_id,
+        nodes_created,
+        edges_created,
     )
     return {"nodes_created": nodes_created, "edges_created": edges_created}

@@ -49,9 +49,7 @@ async def test_get_review_detail_formats_output():
     )
 
     user = {"email": "auditor@ancol.co.id", "role": "internal_auditor"}
-    result = await handle_get_review_detail(
-        {"document_id": "doc-001"}, api, user
-    )
+    result = await handle_get_review_detail({"document_id": "doc-001"}, api, user)
     assert isinstance(result, str)
     assert len(result) > 0
 

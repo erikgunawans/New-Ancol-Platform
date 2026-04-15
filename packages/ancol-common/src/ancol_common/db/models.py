@@ -507,8 +507,13 @@ class ContractTemplate(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     contract_type: Mapped[str] = mapped_column(
         Enum(
-            "nda", "vendor", "sale_purchase", "joint_venture",
-            "land_lease", "employment", "sop_board_resolution",
+            "nda",
+            "vendor",
+            "sale_purchase",
+            "joint_venture",
+            "land_lease",
+            "employment",
+            "sop_board_resolution",
             name="contract_type",
         ),
         nullable=False,
@@ -539,8 +544,13 @@ class Contract(Base):
     contract_number: Mapped[str | None] = mapped_column(String(100), unique=True)
     contract_type: Mapped[str] = mapped_column(
         Enum(
-            "nda", "vendor", "sale_purchase", "joint_venture",
-            "land_lease", "employment", "sop_board_resolution",
+            "nda",
+            "vendor",
+            "sale_purchase",
+            "joint_venture",
+            "land_lease",
+            "employment",
+            "sop_board_resolution",
             name="contract_type",
             create_type=False,
         ),
@@ -548,8 +558,17 @@ class Contract(Base):
     )
     status: Mapped[str] = mapped_column(
         Enum(
-            "draft", "pending_review", "in_review", "approved", "executed",
-            "active", "expiring", "expired", "terminated", "amended", "failed",
+            "draft",
+            "pending_review",
+            "in_review",
+            "approved",
+            "executed",
+            "active",
+            "expiring",
+            "expired",
+            "terminated",
+            "amended",
+            "failed",
             name="contract_status",
         ),
         nullable=False,
@@ -643,8 +662,12 @@ class ObligationRecord(Base):
     )
     obligation_type: Mapped[str] = mapped_column(
         Enum(
-            "renewal", "reporting", "payment", "termination_notice",
-            "deliverable", "compliance_filing",
+            "renewal",
+            "reporting",
+            "payment",
+            "termination_notice",
+            "deliverable",
+            "compliance_filing",
             name="obligation_type",
         ),
         nullable=False,
@@ -657,7 +680,11 @@ class ObligationRecord(Base):
     responsible_party_name: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(
         Enum(
-            "upcoming", "due_soon", "overdue", "fulfilled", "waived",
+            "upcoming",
+            "due_soon",
+            "overdue",
+            "fulfilled",
+            "waived",
             name="obligation_status",
         ),
         nullable=False,
@@ -685,8 +712,13 @@ class ClauseLibrary(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     contract_type: Mapped[str] = mapped_column(
         Enum(
-            "nda", "vendor", "sale_purchase", "joint_venture",
-            "land_lease", "employment", "sop_board_resolution",
+            "nda",
+            "vendor",
+            "sale_purchase",
+            "joint_venture",
+            "land_lease",
+            "employment",
+            "sop_board_resolution",
             name="contract_type",
             create_type=False,
         ),

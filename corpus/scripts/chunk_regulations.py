@@ -166,7 +166,9 @@ def chunk_by_articles(body: str) -> list[tuple[str, str, str]]:
     return chunks
 
 
-def process_file(file_path: Path, meta_override: RegulationMetadata | None = None) -> list[RegulationChunk]:
+def process_file(
+    file_path: Path, meta_override: RegulationMetadata | None = None
+) -> list[RegulationChunk]:
     """Process a single regulation file into chunks."""
     text = file_path.read_text(encoding="utf-8")
     meta, body = parse_frontmatter(text)
@@ -229,12 +231,14 @@ def process_directory(input_dir: Path, output_dir: Path) -> dict:
 
         stats["files_processed"] += 1
         stats["total_chunks"] += len(chunks)
-        stats["regulations"].append({
-            "regulation_id": reg_id,
-            "title": chunks[0].title,
-            "chunks": len(chunks),
-            "source": str(file_path.name),
-        })
+        stats["regulations"].append(
+            {
+                "regulation_id": reg_id,
+                "title": chunks[0].title,
+                "chunks": len(chunks),
+                "source": str(file_path.name),
+            }
+        )
         print(f"  {file_path.name} → {len(chunks)} chunks → {output_file.name}")
 
     # Write manifest

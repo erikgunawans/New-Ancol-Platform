@@ -73,7 +73,6 @@ TEST_QUERIES: list[TestQuery] = [
         expected_articles=["14", "91"],
         description="Circular resolution validity and requirements",
     ),
-
     # ── Board Governance (POJK 33, Charters) ──
     TestQuery(
         id=5,
@@ -107,7 +106,6 @@ TEST_QUERIES: list[TestQuery] = [
         expected_articles=["4", "11", "13"],
         description="Required contents of board meeting minutes",
     ),
-
     # ── Related Party Transactions (POJK 42, RPT Policy) ──
     TestQuery(
         id=9,
@@ -141,7 +139,6 @@ TEST_QUERIES: list[TestQuery] = [
         expected_articles=["1"],
         description="PJAA related party entity list",
     ),
-
     # ── Listing Rules (IDX) ──
     TestQuery(
         id=13,
@@ -159,7 +156,6 @@ TEST_QUERIES: list[TestQuery] = [
         expected_articles=["III.2"],
         description="Material information disclosure requirements",
     ),
-
     # ── Corporate Charter (AD/ART specific) ──
     TestQuery(
         id=15,
@@ -177,7 +173,6 @@ TEST_QUERIES: list[TestQuery] = [
         expected_articles=["11", "2"],
         description="Minimum directors per AD/ART",
     ),
-
     # ── Cross-domain queries ──
     TestQuery(
         id=17,
@@ -273,7 +268,9 @@ def test_local_retrieval(chunks_dirs: list[Path], verbose: bool = False) -> dict
 
         if verbose:
             status = "PASS" if precision >= 0.8 and recall >= 0.7 else "FAIL"
-            print(f"  Q{query.id:2d} [{status}] P={precision:.2f} R={recall:.2f} -- {query.description}")
+            print(
+                f"  Q{query.id:2d} [{status}] P={precision:.2f} R={recall:.2f} -- {query.description}"
+            )
             if status == "FAIL":
                 missing = expected - retrieved_regulations
                 if missing:
@@ -289,9 +286,7 @@ def test_vertex_search_retrieval(
     try:
         from google.cloud import discoveryengine_v1 as discoveryengine
 
-        client_options = ClientOptions(
-            api_endpoint=f"{region}-discoveryengine.googleapis.com"
-        )
+        client_options = ClientOptions(api_endpoint=f"{region}-discoveryengine.googleapis.com")
         client = discoveryengine.SearchServiceClient(client_options=client_options)
     except Exception as e:
         print(f"Cannot connect to Vertex AI Search: {e}")
@@ -339,17 +334,21 @@ def test_vertex_search_retrieval(
 
             if verbose:
                 status = "PASS" if precision >= 0.8 and recall >= 0.7 else "FAIL"
-                print(f"  Q{query.id:2d} [{status}] P={precision:.2f} R={recall:.2f} -- {query.description}")
+                print(
+                    f"  Q{query.id:2d} [{status}] P={precision:.2f} R={recall:.2f} -- {query.description}"
+                )
 
         except Exception as e:
             print(f"  Q{query.id:2d} [ERROR] {e}")
-            results.append({
-                "query_id": query.id,
-                "domain": query.domain,
-                "precision": 0,
-                "recall": 0,
-                "error": str(e),
-            })
+            results.append(
+                {
+                    "query_id": query.id,
+                    "domain": query.domain,
+                    "precision": 0,
+                    "recall": 0,
+                    "error": str(e),
+                }
+            )
 
     return _compute_summary(results)
 

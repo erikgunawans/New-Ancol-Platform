@@ -91,7 +91,8 @@ class GraphClient(ABC):
 
     @abstractmethod
     async def get_related_regulations_for_contract(
-        self, contract_id: str,
+        self,
+        contract_id: str,
     ) -> list[RegulationNode]:
         """Return regulations linked to a contract via graph edges."""
 

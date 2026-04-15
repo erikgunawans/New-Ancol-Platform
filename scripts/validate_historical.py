@@ -19,9 +19,7 @@ import sys
 from pathlib import Path
 
 # Add shared package to path
-_COMMON_PATH = str(
-    Path(__file__).resolve().parent.parent / "packages" / "ancol-common" / "src"
-)
+_COMMON_PATH = str(Path(__file__).resolve().parent.parent / "packages" / "ancol-common" / "src")
 sys.path.insert(0, _COMMON_PATH)
 
 from ancol_common.utils import EXTENSION_TO_FORMAT  # noqa: E402
@@ -71,8 +69,7 @@ def validate(manifest_path: str) -> list[str]:
             # Check date format
             if not DATE_PATTERN.match(meeting_date):
                 errors.append(
-                    f"Row {row_num}: Invalid date format "
-                    f"'{meeting_date}', expected YYYY-MM-DD"
+                    f"Row {row_num}: Invalid date format '{meeting_date}', expected YYYY-MM-DD"
                 )
 
             # Check mom_type

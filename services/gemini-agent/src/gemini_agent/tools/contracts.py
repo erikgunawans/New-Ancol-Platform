@@ -46,10 +46,7 @@ async def handle_upload_contract(
     if not contract_id:
         return "Error: Upload gagal — tidak mendapat contract ID dari server."
 
-    return (
-        f"Kontrak **{title}** berhasil diunggah.\n\n"
-        + format_contract_status(result)
-    )
+    return f"Kontrak **{title}** berhasil diunggah.\n\n" + format_contract_status(result)
 
 
 async def handle_check_contract_status(

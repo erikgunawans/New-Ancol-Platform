@@ -115,9 +115,7 @@ async def extract_contract(
     financial_terms = extracted.get("financial_terms", {})
     risk_summary = extracted.get("risk_summary", {})
 
-    obligations = [
-        ExtractedObligation(**o) for o in extracted.get("obligations", [])
-    ]
+    obligations = [ExtractedObligation(**o) for o in extracted.get("obligations", [])]
     applicable_regulations = [
         ApplicableRegulation(**r) for r in extracted.get("applicable_regulations", [])
     ]
