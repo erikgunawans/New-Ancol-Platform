@@ -40,11 +40,16 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
   });
 
-  await fetch(`${API_BASE}/api/notifications/subscribe`, {
+  const res = await fetch(`${API_BASE}/api/notifications/subscribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(subscription.toJSON()),
   });
+
+  if (!res.ok) {
+    await subscription.unsubscribe();
+    return null;
+  }
 
   return subscription;
 }

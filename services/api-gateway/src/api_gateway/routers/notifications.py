@@ -32,6 +32,6 @@ async def unsubscribe(body: dict, _auth=require_permission("notifications:manage
 
 
 @router.get("/subscriptions")
-async def list_subscriptions(_auth=require_permission("admin:manage")):
+async def list_subscriptions(_auth=require_permission("notifications:view")):
     subs = list(_subscriptions.values())
     return {"subscriptions": subs, "total": len(subs)}
