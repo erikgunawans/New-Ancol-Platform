@@ -71,6 +71,15 @@ ROLE_PERMISSIONS: dict[str, set[UserRole]] = {
         UserRole.BUSINESS_DEV,
         UserRole.ADMIN,
     },
+    "notifications:manage": {
+        UserRole.CORP_SECRETARY,
+        UserRole.INTERNAL_AUDITOR,
+        UserRole.KOMISARIS,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.BUSINESS_DEV,
+        UserRole.ADMIN,
+    },
     # Contract Lifecycle Management
     "contracts:create": {
         UserRole.CORP_SECRETARY,
