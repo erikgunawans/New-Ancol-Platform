@@ -10,8 +10,8 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
-# In-memory subscription store (replaced by DB in production)
-_subscriptions: list[dict] = []
+# In-memory subscription store keyed by endpoint (replaced by DB in production)
+_subscriptions: dict[str, dict] = {}
 
 
 @router.post("/subscribe")
@@ -19,21 +19,18 @@ async def subscribe(body: dict):
     endpoint = body.get("endpoint")
     if not endpoint:
         return {"status": "error", "message": "Missing endpoint"}
-    for sub in _subscriptions:
-        if sub["endpoint"] == endpoint:
-            sub.update(body)
-            return {"status": "subscribed"}
-    _subscriptions.append(body)
+    _subscriptions[endpoint] = body
     return {"status": "subscribed"}
 
 
 @router.post("/unsubscribe")
 async def unsubscribe(body: dict):
     endpoint = body.get("endpoint", "")
-    _subscriptions[:] = [s for s in _subscriptions if s["endpoint"] != endpoint]
+    _subscriptions.pop(endpoint, None)
     return {"status": "unsubscribed"}
 
 
 @router.get("/subscriptions")
 async def list_subscriptions():
-    return {"subscriptions": _subscriptions, "total": len(_subscriptions)}
+    subs = list(_subscriptions.values())
+    return {"subscriptions": subs, "total": len(subs)}

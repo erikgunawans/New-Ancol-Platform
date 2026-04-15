@@ -39,8 +39,9 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
 export function NotificationCenter() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] =
-    useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(
+    process.env.NODE_ENV === "development" ? INITIAL_NOTIFICATIONS : []
+  );
   const [pushStatus, setPushStatus] = useState<string>("unsupported");
 
   // Initialise permission status on mount (client-only)
@@ -58,7 +59,7 @@ export function NotificationCenter() {
       if (event.data?.type === "push-notification") {
         const { title, body, url } = event.data;
         const newNotification: NotificationItem = {
-          id: `sw-${Date.now()}`,
+          id: crypto.randomUUID(),
           title: title ?? "Notifikasi baru",
           body: body ?? "",
           timestamp: "Baru saja",

@@ -41,7 +41,7 @@ class TestPushSubscription:
         from api_gateway.routers.notifications import _subscriptions
 
         _subscriptions.clear()
-        _subscriptions.append({"endpoint": "https://fcm.googleapis.com/test-789", "keys": {}})
+        _subscriptions["https://fcm.googleapis.com/test-789"] = {"endpoint": "https://fcm.googleapis.com/test-789", "keys": {}}
         from api_gateway.main import app
         from fastapi.testclient import TestClient
 
@@ -71,8 +71,8 @@ class TestPushSubscription:
         from api_gateway.routers.notifications import _subscriptions
 
         _subscriptions.clear()
-        _subscriptions.append({"endpoint": "https://test-1", "keys": {}})
-        _subscriptions.append({"endpoint": "https://test-2", "keys": {}})
+        _subscriptions["https://test-1"] = {"endpoint": "https://test-1", "keys": {}}
+        _subscriptions["https://test-2"] = {"endpoint": "https://test-2", "keys": {}}
         from api_gateway.main import app
         from fastapi.testclient import TestClient
 
