@@ -138,6 +138,40 @@ async def generate_draft(
     }
 
 
+@router.post("/pdf")
+async def generate_draft_pdf(
+    _auth=require_permission("drafting:generate"),
+    body: dict | None = None,
+):
+    """Generate a contract draft and return styled HTML for PDF rendering."""
+    from ancol_common.drafting.engine import assemble_draft
+    from ancol_common.drafting.pdf import generate_contract_html
+    from ancol_common.schemas.contract import ContractParty
+    from ancol_common.schemas.drafting import DraftRequest
+
+    if body is None:
+        body = {}
+    request = DraftRequest(
+        contract_type=body.get("contract_type", "vendor"),
+        parties=[ContractParty(**p) for p in body.get("parties", [])],
+        key_terms=body.get("key_terms", {}),
+        clause_overrides=body.get("clause_overrides", []),
+        language=body.get("language", "id"),
+    )
+
+    async with get_session() as session:
+        result = await assemble_draft(session, request)
+
+    html = generate_contract_html(request, result)
+
+    return {
+        "contract_id": result.contract_id,
+        "html": html,
+        "clauses": [c.model_dump() for c in result.clauses],
+        "risk_assessment": result.risk_assessment,
+    }
+
+
 @router.get("/clause-library")
 async def list_clause_library(
     _auth=require_permission("drafting:generate"),

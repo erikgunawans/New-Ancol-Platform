@@ -189,6 +189,18 @@ export const getClauseLibrary = (contractType?: string, category?: string) =>
     `/api/drafting/clause-library?${contractType ? `contract_type=${contractType}&` : ""}${category ? `category=${category}` : ""}`
   );
 
+export const generateDraft = (data: import("@/types").DraftFormData) =>
+  fetchApi<import("@/types").DraftResult>("/api/drafting/generate", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const generateDraftPdf = (data: import("@/types").DraftFormData) =>
+  fetchApi<import("@/types").DraftPdfResult>("/api/drafting/pdf", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
 // Analytics
 export const getScoreTrends = (months = 12) =>
   fetchApi<{ trends: import("@/types").ScoreTrendPoint[]; period_type: string }>(
