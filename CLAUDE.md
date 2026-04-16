@@ -4,12 +4,25 @@
 
 - **ALWAYS read `PROGRESS.md` at the start of every session** — it has the current state, what's done, what's next, and critical files to read first
 - **ALWAYS update `PROGRESS.md` after completing any task** — add a session entry with scope, files created/modified, tests passing, and next steps so the next session can resume seamlessly
+- When working in git worktrees, immediately confirm the working directory and branch before starting any work. Do not spend session time on setup/exploration unless explicitly asked.
+- When hitting API context limits or usage limits, immediately checkpoint progress and summarize remaining work in PROGRESS.md rather than retrying failed commands.
+- For major dependency upgrades or SDK migrations, read the changelog/migration guide FIRST before attempting code changes. Do not assume old API signatures still work.
+- When debugging frontend issues, always verify the backend is running and returning expected response shapes before investigating frontend code.
+
+## Deployment
+
+Before deploying to Vercel or GCP, always verify:
+1. Correct project/target (Vercel project name or GCP project ID)
+2. All env vars are set (cross-check against the Environment Variables table below)
+3. Correct branch (`main` for this repo)
+4. Run full CI locally: `ruff check packages/ services/ && /run-tests`
 
 ## Setup
 
 ```bash
 # Prerequisites: Python 3.12, Node 22, ruff, Terraform
 pip install -e packages/ancol-common        # install shared package locally
+pip install neo4j>=5.15                     # optional: Neo4j graph backend
 cd web && npm install && cd ..              # install frontend deps
 ```
 
@@ -94,7 +107,7 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 8. **Regulation Monitor** (OJK/IDX/industry scraper) — `services/regulation-monitor/`
 
 **API + Frontend:**
-9. **API Gateway** (FastAPI, 28 REST endpoints) — `services/api-gateway/`
+9. **API Gateway** (FastAPI, 54 REST endpoints) — `services/api-gateway/`
 10. **Frontend** (Next.js 15, React 19, Tailwind) — `web/` — analytics companion (trends, heatmaps, batch progress)
 
 **Gemini Enterprise Interface (primary):**
@@ -124,21 +137,50 @@ All agents share `packages/ancol-common/` which contains:
 
 ## Testing
 
-277 unit tests across 9 services (run locally). Each service tested individually:
+Always run the full CI pipeline locally before pushing: `ruff check packages/ services/ scripts/ corpus/scripts/` + `/run-tests`. Check all pip/npm deps are installed and no tests are skipped by assumption.
+
+377 unit tests across 9 services (run locally). Use `/run-tests` skill or test individually:
 - extraction-agent: 25 tests (structural parser, contract extraction, obligation extraction, risk scoring)
 - legal-research-agent: 9 tests (citation validator, endpoints)
 - comparison-agent: 27 tests (5 red flag detectors, severity scoring)
 - reporting-agent: 16 tests (scorecard calc, PDF rendering)
-- api-gateway: 90 tests (health, CORS, RBAC enforcement, obligation transitions, drafting engine, schemas, contract PDF)
+- api-gateway: 177 tests (health, CORS, RBAC enforcement, per-gate HITL, MFA, WhatsApp notifications, obligation transitions, drafting engine, schemas, contract PDF)
 - batch-engine: 18 tests (rate limiter, status transitions, schemas, health)
 - email-ingest: 24 tests (filename detection, MoM type, date extraction, content type, health)
 - regulation-monitor: 20 tests (sources, relevance filter, date parsing, endpoints)
-- gemini-agent: 48 tests (webhook routing, upload flow, HITL tools, RAG orchestrator, graph client, contract Q&A RAG, formatting)
+- gemini-agent: 61 tests (webhook routing, upload flow, HITL tools, RAG orchestrator, graph client, Neo4j contract queries, contract Q&A RAG, formatting)
 - document-processor: 7 tests (requires `google-cloud-documentai` — runs in CI only)
 
 ## Current State
 
-**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-4 COMPLETE.** v0.1.0.0. ~410 files, 277 tests locally (284 total incl. CI-only). RBAC enforced on all 47 API endpoints. Contract extraction + smart drafting + Q&A RAG + obligation auto-extraction + PDF generation + frontend detail/draft pages. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
+**ALL PHASES COMPLETE + MFA + WHATSAPP + NEO4J.** v0.3.0.0. ~420 files, 377 tests locally (384 total incl. CI-only). RBAC enforced on all 54 API endpoints with per-gate HITL role enforcement. MFA (TOTP) with Fernet encryption, backup codes, JWT session tokens. WhatsApp notification delivery with unified dispatcher. Neo4j AuraDS graph client (all 7 methods). Security reviewed. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
+
+## Automations
+
+Hooks, skills, and agents are configured in `.claude/`:
+
+- **Hooks** (`.claude/settings.json`): Auto-format with ruff on every edit. Blocks `.env` file edits.
+- **Skills**: `/run-tests` (full 9-service test suite), `/new-endpoint` (scaffold with RBAC + MFA)
+- **Agents**: `security-reviewer` (auth, crypto, data sovereignty audit)
+- **MCP Servers**: `context7` (live library docs), `github` (issues, PRs, CI)
+- **Knowledge Graph**: `graphify-out/graph.json` (2,134 nodes, 5,228 edges). Run `/graphify query "<question>"` to traverse. Run `/graphify --update` after code changes.
+
+## Environment Variables (new features)
+
+MFA, WhatsApp, and Neo4j require these env vars (all optional, features degrade gracefully without them):
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `MFA_ENABLED` | Enable app-level MFA | `false` |
+| `MFA_ENCRYPTION_KEY` | Fernet key for TOTP secrets | (required if MFA enabled) |
+| `MFA_JWT_SECRET` | HMAC key for MFA session tokens | (required if MFA enabled) |
+| `MFA_REQUIRED_ROLES` | Comma-separated roles requiring MFA | `admin,corp_secretary,internal_auditor,legal_compliance` |
+| `WHATSAPP_API_TOKEN` | Twilio WhatsApp API token | (empty = WhatsApp disabled) |
+| `WHATSAPP_API_URL` | Twilio API endpoint | (empty = WhatsApp disabled) |
+| `GRAPH_BACKEND` | Graph backend: `spanner`, `neo4j`, `none` | `spanner` |
+| `NEO4J_URI` | Neo4j connection URI | `bolt://localhost:7687` |
+| `NEO4J_USER` | Neo4j username | `neo4j` |
+| `NEO4J_PASSWORD` | Neo4j password | (empty) |
 
 ## Gotchas
 
@@ -157,6 +199,13 @@ All agents share `packages/ancol-common/` which contains:
 - **Ruff must include `scripts/` directory**: Bulk upload and seed scripts live in `scripts/` and `corpus/scripts/` — include these paths when running `ruff check`
 - **RBAC is per-endpoint**: Every API endpoint uses `require_permission("key")` from `auth/rbac.py`. When adding new endpoints, always add the `_auth=require_permission("...")` parameter
 - **Obligation transitions are bulk UPDATE**: `check_obligation_deadlines()` in `repository.py` uses `sqlalchemy.update()` for status transitions, same pattern as `retroactive.py`
+- **MFA is off by default**: `MFA_ENABLED=false` in config. Enable with env var. MFA enforcement is per-router dependency (not middleware), so MFA endpoints (`/me/mfa/*`) are accessible without MFA (avoids chicken-and-egg). Requires `MFA_ENCRYPTION_KEY` (Fernet) and `MFA_JWT_SECRET` env vars.
+- **MFA token is bound to IAP identity**: `require_mfa_verified()` compares JWT `sub` claim against current IAP email to prevent cookie theft reuse across users
+- **Backup codes use constant-time comparison**: `verify_backup_code()` in `mfa.py` uses `hmac.compare_digest()` to prevent timing side-channels
+- **WhatsApp is opt-in**: Default `notification_channels` is `["email", "in_app"]`. Users must explicitly enable WhatsApp via `/me/profile` endpoint with a valid E.164 phone number
+- **VALID_CHANNELS constant lives in dispatcher**: `notifications/dispatcher.py` owns `VALID_CHANNELS` and `DEFAULT_CHANNELS`. Import from there, don't redefine.
+- **UserResponse.from_user() class method**: Use `UserResponse.from_user(u)` instead of manually constructing UserResponse fields. Defined in `routers/users.py`.
+- **Neo4j is fully implemented**: All 7 `GraphClient` methods have Cypher implementations. Switch with `GRAPH_BACKEND=neo4j` + `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars. Driver needs explicit `close()` call.
 
 ## Plan Verification Protocol
 

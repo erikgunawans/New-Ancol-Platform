@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hook": "ruff format --quiet $CLAUDE_FILE_PATHS 2>/dev/null; ruff check --fix --quiet $CLAUDE_FILE_PATHS 2>/dev/null; true"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hook": "echo $CLAUDE_FILE_PATHS | grep -qE '\\.env' && echo 'BLOCK: Do not edit .env files — secrets belong in environment variables or GCP Secret Manager' && exit 1 || exit 0"
+      }
+    ]
+  }
+}
