@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 
+from ancol_common.auth.mfa import require_mfa_verified
 from ancol_common.auth.rbac import require_permission
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
@@ -14,7 +15,7 @@ from ancol_common.pubsub.publisher import publish_message
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/documents", tags=["Documents"])
+router = APIRouter(prefix="/documents", tags=["Documents"], dependencies=[require_mfa_verified()])
 
 
 class DocumentResponse(BaseModel):

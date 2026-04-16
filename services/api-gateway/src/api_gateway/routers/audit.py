@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from ancol_common.auth.mfa import require_mfa_verified
 from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import AuditTrailRecord
@@ -11,7 +12,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 
-router = APIRouter(prefix="/audit", tags=["Audit Trail"])
+router = APIRouter(prefix="/audit", tags=["Audit Trail"], dependencies=[require_mfa_verified()])
 
 
 class AuditEntryResponse(BaseModel):

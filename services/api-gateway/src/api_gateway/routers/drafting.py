@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from ancol_common.auth.mfa import require_mfa_verified
 from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import ClauseLibrary, ContractTemplate
@@ -11,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 
-router = APIRouter(prefix="/drafting", tags=["Drafting"])
+router = APIRouter(prefix="/drafting", tags=["Drafting"], dependencies=[require_mfa_verified()])
 
 
 class TemplateResponse(BaseModel):

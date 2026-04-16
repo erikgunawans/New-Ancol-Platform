@@ -130,7 +130,49 @@ ROLE_PERMISSIONS: dict[str, set[UserRole]] = {
         UserRole.LEGAL_COMPLIANCE,
         UserRole.ADMIN,
     },
+    # MFA
+    "mfa:admin_reset": {UserRole.ADMIN},
+    # User profile
+    "users:update_profile": {
+        UserRole.CORP_SECRETARY,
+        UserRole.INTERNAL_AUDITOR,
+        UserRole.KOMISARIS,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.CONTRACT_MANAGER,
+        UserRole.BUSINESS_DEV,
+        UserRole.ADMIN,
+    },
 }
+
+
+# Gate-to-permission mapping: which permission keys apply to each HITL gate
+GATE_PERMISSIONS: dict[str, list[str]] = {
+    "hitl_gate_1": ["hitl:gate_1"],
+    "hitl_gate_2": ["hitl:gate_2"],
+    "hitl_gate_3": ["hitl:gate_3"],
+    "hitl_gate_4": ["hitl:gate_4_corpsec", "hitl:gate_4_audit"],
+}
+
+
+def check_gate_permission(user_role: str | UserRole, gate: str) -> bool:
+    """Check if a user role has permission for a specific HITL gate.
+
+    For gates 1-3, checks a single permission.
+    For gate 4 (dual approval), checks either corpsec or audit permission.
+    """
+    role = UserRole(user_role)
+    perm_keys = GATE_PERMISSIONS.get(gate, [])
+    return any(role in ROLE_PERMISSIONS.get(pk, set()) for pk in perm_keys)
+
+
+def get_user_visible_gates(user_role: str | UserRole) -> list[str]:
+    """Return which HITL gate statuses a role is allowed to review."""
+    role = UserRole(user_role)
+    return [
+        gate
+        for gate, perm_keys in GATE_PERMISSIONS.items()
+        if any(role in ROLE_PERMISSIONS.get(pk, set()) for pk in perm_keys)
+    ]
 
 
 def require_role(*allowed_roles: UserRole) -> Callable:

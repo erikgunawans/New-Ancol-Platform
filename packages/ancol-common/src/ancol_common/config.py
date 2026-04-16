@@ -87,6 +87,16 @@ class Settings(BaseModel):
     whatsapp_api_token: str = os.getenv("WHATSAPP_API_TOKEN", "")
     whatsapp_api_url: str = os.getenv("WHATSAPP_API_URL", "")
 
+    # MFA
+    mfa_encryption_key: str = os.getenv("MFA_ENCRYPTION_KEY", "")
+    mfa_jwt_secret: str = os.getenv("MFA_JWT_SECRET", "")
+    mfa_token_ttl_minutes: int = int(os.getenv("MFA_TOKEN_TTL_MINUTES", "480"))
+    mfa_totp_issuer: str = os.getenv("MFA_TOTP_ISSUER", "Ancol Compliance")
+    mfa_required_roles: str = os.getenv(
+        "MFA_REQUIRED_ROLES", "admin,corp_secretary,internal_auditor,legal_compliance"
+    )
+    mfa_enabled: bool = os.getenv("MFA_ENABLED", "false").lower() == "true"
+
     # Environment
     environment: str = os.getenv("ENVIRONMENT", "dev")
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"

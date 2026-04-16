@@ -27,3 +27,14 @@ UPDATE users SET manager_id = 'a0000000-0000-0000-0000-000000000001' WHERE id = 
 UPDATE users SET manager_id = 'a0000000-0000-0000-0000-000000000003' WHERE id = 'a0000000-0000-0000-0000-000000000004';
 UPDATE users SET manager_id = 'a0000000-0000-0000-0000-000000000005' WHERE id = 'a0000000-0000-0000-0000-000000000006';
 UPDATE users SET manager_id = 'a0000000-0000-0000-0000-000000000007' WHERE id = 'a0000000-0000-0000-0000-000000000008';
+
+-- Set phone numbers for WhatsApp notifications (Indonesian +62 format)
+UPDATE users SET phone_number = '+6281234567001' WHERE email = 'corpsec@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567002' WHERE email = 'corpsec.staff@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567003' WHERE email = 'audit.head@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567004' WHERE email = 'auditor@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567005' WHERE email = 'komisaris.utama@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567006' WHERE email = 'komisaris@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567007' WHERE email = 'legal.head@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567008' WHERE email = 'legal@ancol.co.id';
+UPDATE users SET phone_number = '+6281234567009' WHERE email = 'admin@ancol.co.id';

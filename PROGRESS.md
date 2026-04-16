@@ -1,8 +1,8 @@
 # Ancol MoM Compliance System — Progress Tracker
 
-## Current State (as of 2026-04-15)
+## Current State (as of 2026-04-17)
 
-**ALL 5 PHASES + GEMINI AGENT + CLM PHASE 1-3 + CLM PHASE 4 (PDF + Frontend) COMPLETE.** ~410 source files, 277 unit tests passing across 9 services, 21 ORM tables. MoM compliance + full Contract Lifecycle Management (extraction, drafting, Q&A RAG, obligation auto-extraction, PDF generation, frontend detail + draft pages). RBAC enforced on all 47 API endpoints. 3-layer hybrid RAG for contracts. 11 Cloud Run services, 16 frontend routes, 17 Terraform modules.
+**ALL PHASES COMPLETE + MFA + WHATSAPP + NEO4J GRAPH.** v0.3.0.0. ~420 source files, 377 unit tests passing across 9 services (25+9+27+16+177+18+24+20+61), 21 ORM tables. MoM compliance + CLM + MFA (TOTP) + WhatsApp notifications + Neo4j AuraDS graph client. RBAC enforced on all 54 API endpoints with per-gate HITL role enforcement. Code reviewed with /simplify + /review (security hardened: MFA token identity binding, constant-time backup codes, RBAC on all /me/* endpoints).
 
 **Repository:** https://github.com/erikgunawans/New-Ancol-Platform (standalone repo)
 
@@ -15,8 +15,15 @@
 | **Phase 5: Integration** | 17-20 | **COMPLETE** | +35 | 38 |
 | **CLM Phase 1** | 1-8 | **COMPLETE** | +45 | 52 |
 | **CLM Phase 4: PDF + Frontend** | — | **COMPLETE** | +8 | 13 |
+| **PWA + Push** | — | **COMPLETE** | +N | 0 (frontend) |
+| **CI Fix** | — | **COMPLETE** | 26 reformatted | 0 new |
+| **Per-Gate HITL RBAC** | — | **COMPLETE** | +3 | +14 |
+| **MFA (TOTP)** | — | **COMPLETE** | +3 new, +9 mod | +41 |
+| **WhatsApp Notifications** | — | **COMPLETE** | +3 new, +8 mod | +27 |
+| **Neo4j AuraDS Graph** | — | **COMPLETE** | +1 new, +2 mod | +13 |
+| **Code Review + Security** | — | **COMPLETE** | 6 security fixes | 0 new |
 
-**System is deployment-ready with Gemini Enterprise as primary interface.** MoM compliance + CLM (contracts, obligations, drafting, PDF export) on shared infrastructure. Hybrid RAG with Spanner Graph. Next.js PWA frontend with 16 routes (grouped sidebar: MoM / Contracts / Admin).
+**System is deployment-ready with Gemini Enterprise as primary interface.** MoM compliance + CLM + MFA + WhatsApp + Neo4j. Hybrid RAG with Spanner Graph or Neo4j AuraDS (swappable via `GRAPH_BACKEND` env var). 54 API endpoints, all RBAC-enforced. Security-reviewed.
 
 ---
 
@@ -409,6 +416,94 @@ New-Ancol-Platform/                    (~295 files)
 ---
 
 ## Session Log
+
+### Session 26 — 2026-04-17
+
+**Scope:** Neo4j AuraDS graph client completion + code review + security hardening
+
+- **Neo4j graph client completed**: Implemented 2 remaining contract Cypher queries (`get_related_regulations_for_contract`, `get_related_contracts`) + `close()` method. All 7 abstract methods now fully implemented.
+- **Code simplification** (`/simplify`): Consolidated 3x `VALID_CHANNELS` constants → 1, added `UserResponse.from_user()` class method, extracted `_clear_mfa_fields()` helper, fixed `datetime.now()` → `datetime.now(UTC)`, fixed `notification_channels` type annotation `dict` → `list`, parallelized notification dispatch with `asyncio.gather()`, batched role lookup in dispatcher.
+- **Security review** (`/review`): Fixed 6 security issues — MFA token identity binding (P0), constant-time backup code verification, RBAC on all `/me/*` endpoints, notification exception logging, `DELETE` → `POST` for MFA disable (HTTP spec), enrollment race condition prevention.
+- **13 new Neo4j tests**, updated MockGraphClient with contract test data.
+
+**Files modified:** 20 files (auth/mfa.py, notifications/dispatcher.py, routers/users.py, routers/notifications.py, routers/hitl.py, routers/audit.py, routers/contracts.py, routers/documents.py, routers/drafting.py, routers/reports.py, neo4j_graph.py, test_rag_orchestrator.py, + 3 new files)
+**Tests:** 377 passing across 9 services (25+9+27+16+177+18+24+20+61). 0 lint errors.
+
+---
+
+### Session 25 — 2026-04-17
+
+**Scope:** WhatsApp phone field + notification delivery wiring
+
+- **User model expanded**: Added `phone_number` (String(20), unique, E.164 format) + `notification_channels` (JSONB, default `["email", "in_app"]`).
+- **Notification dispatcher created**: Unified `send_notification()` routes to email/WhatsApp/in-app per user preferences. `notify_gate_reviewers()` finds eligible reviewers via GATE_PERMISSIONS and dispatches.
+- **HITL notifications wired**: Gate transitions now auto-notify next-gate reviewers.
+- **User profile endpoint**: `PATCH /me/profile` for phone + notification preferences. `GET/PATCH /me/preferences` on notifications router.
+- **Frontend type updated**: `phone_number?` + `notification_channels?` on User interface.
+- **Alembic migration 004**: phone_number + notification_channels columns.
+
+**Files modified/created:** 11 files. 27 new tests.
+**Tests:** 364 passing (25+9+27+16+177+18+24+20+48).
+
+---
+
+### Session 24 — 2026-04-17
+
+**Scope:** MFA (TOTP) implementation
+
+- **Core MFA module** (`auth/mfa.py`): Fernet encryption for TOTP secrets, TOTP generation/verification (pyotp), backup codes (SHA-256 hashed, one-time use), JWT session tokens, `require_mfa_verified()` FastAPI dependency.
+- **6 MFA endpoints**: status, enroll (QR code), confirm, verify (sets cookie), disable, admin reset.
+- **MFA enforcement**: Router-level dependency on 6 sensitive routers (documents, hitl, contracts, drafting, reports, audit). Kill switch via `MFA_ENABLED=false` (default).
+- **Alembic migration 003**: 4 MFA columns on users table.
+- **41 new tests** across 9 test classes.
+
+**Files modified/created:** 14 files. New deps: pyotp, pyjwt, qrcode.
+**Tests:** 337 passing (25+9+27+16+150+18+24+20+48).
+
+---
+
+### Session 23 — 2026-04-16
+
+**Scope:** Per-gate HITL role enforcement
+
+- **Per-gate RBAC implemented**: HITL endpoints now enforce gate-specific roles instead of the union `hitl:decide` permission. Gate 1: corp_secretary + admin. Gate 2: internal_auditor + legal_compliance + admin. Gate 3: internal_auditor + admin. Gate 4: corp_secretary OR internal_auditor + admin (dual approval).
+- **Queue filtering**: `/hitl/queue` now only shows documents at gates the user's role can review. Corp secretary sees gates 1+4, internal auditor sees 2+3+4, legal compliance sees 2 only, admin sees all.
+- **Review/decide enforcement**: `/hitl/review/{id}` and `/hitl/decide/{id}` return 403 if the user lacks permission for the document's current gate.
+- **New helpers in `rbac.py`**: `GATE_PERMISSIONS`, `check_gate_permission()`, `get_user_visible_gates()`.
+- **14 new tests**: Full role x gate permission matrix, string role input, edge cases.
+
+**Files modified:** `auth/rbac.py`, `routers/hitl.py`, `tests/test_rbac_enforcement.py`
+**Tests:** 296 passing across 9 services (was 282). api-gateway: 95 -> 109 (+14).
+
+---
+
+### Session 22 — 2026-04-16
+
+**Scope:** Architecture diagram + system guide + project sync
+
+- **Architecture diagram created** using Excalidraw MCP: 6-layer dark-theme diagram covering all 11 Cloud Run services, 4 HITL gates, Pub/Sub orchestration, hybrid RAG data layer. Shareable Excalidraw link generated.
+- **Discovered:** Excalidraw export requires native `containerId`/`boundElements` text binding (MCP `label` shorthand doesn't export). Fixed and re-exported.
+- **System guide written:** `docs/SYSTEM-GUIDE.md` — 13-section technical guide covering full end-to-end flow: document ingestion, 4-agent pipeline, HITL gates, orchestration (Cloud Workflows + Pub/Sub), CLM subsystem, Gemini Enterprise interface, data layer, auth/RBAC, frontend, infrastructure. All details sourced from codebase.
+- **Project sync** run to update all state files.
+
+**Files modified:** PROGRESS.md, PRODUCT-STATUS.md, docs/SYSTEM-GUIDE.md (new), memory files
+**Tests:** 282 passing (25+9+27+16+95+18+24+20+48). All green.
+
+---
+
+### Session 21 — 2026-04-15
+
+**Scope:** CI Pipeline Fix
+
+- **CI workflow rewritten**: Removed Postgres service container + `pip install` per-service approach. Replaced with PYTHONPATH-based per-service test loop (matches local dev workflow). Added `scripts/` and `corpus/scripts/` to ruff lint/format paths.
+- **Ruff format**: 26 files reformatted (enum values one-per-line, parenthesized context managers, trailing commas, string literals).
+- **No logic changes** — purely CI pipeline + formatting fixes.
+- **PR #4** created (`fix/ci-failures` → `main`).
+
+**Files modified:** 26 files (ci.yml, models.py, api_client.py, graph_client.py, spanner/neo4j_graph.py, tools/*, tests/*, scripts/*, corpus/scripts/*)
+**Tests:** 282 passing across 9 services. 0 lint errors. 0 format issues.
+
+---
 
 ### Session 1 — 2026-04-08
 

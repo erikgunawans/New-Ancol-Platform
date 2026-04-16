@@ -81,6 +81,8 @@ export interface User {
   display_name: string;
   role: UserRole;
   department?: string;
+  phone_number?: string;
+  notification_channels?: string[];
   is_active: boolean;
 }
 

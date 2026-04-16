@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 from gemini_agent.rag.graph_client import (
     AmendmentEdge,
+    ContractNode,
     GraphClient,
     RegulationNode,
 )
@@ -64,9 +65,29 @@ class MockGraphClient(GraphClient):
         return regulation_id != "POJK-OLD-SUPERSEDED"
 
     async def get_related_regulations_for_contract(self, contract_id: str) -> list:
+        if contract_id == "contract-001":
+            return [
+                RegulationNode(
+                    id="POJK-27-2016",
+                    title="POJK tentang Perjanjian Perseroan",
+                    issuer="OJK",
+                    effective_date="2016-07-01",
+                    status="active",
+                    authority_level=4,
+                )
+            ]
         return []
 
     async def get_related_contracts(self, contract_id: str) -> list:
+        if contract_id == "contract-001":
+            return [
+                ContractNode(
+                    id="contract-002",
+                    title="Amendment to Contract 001",
+                    contract_type="amendment",
+                    status="active",
+                )
+            ]
         return []
 
 
@@ -121,3 +142,49 @@ async def test_mock_graph_client_active_status():
     client = MockGraphClient()
     assert await client.check_active_status("POJK-33-2014") is True
     assert await client.check_active_status("POJK-OLD-SUPERSEDED") is False
+
+
+@pytest.mark.skipif(
+    not importlib.util.find_spec("neo4j"),
+    reason="neo4j driver not installed",
+)
+def test_get_graph_client_neo4j():
+    """When GRAPH_BACKEND is neo4j, returns Neo4jGraphClient."""
+    with patch.dict(
+        "os.environ",
+        {
+            "GRAPH_BACKEND": "neo4j",
+            "NEO4J_URI": "bolt://localhost:7687",
+            "NEO4J_USER": "neo4j",
+            "NEO4J_PASSWORD": "test",
+        },
+    ):
+        client = get_graph_client()
+        assert client is not None
+        assert "Neo4j" in type(client).__name__
+
+
+@pytest.mark.asyncio
+async def test_mock_graph_client_contract_regulations():
+    """Test that MockGraphClient returns contract-linked regulations."""
+    client = MockGraphClient()
+    regs = await client.get_related_regulations_for_contract("contract-001")
+    assert len(regs) == 1
+    assert regs[0].id == "POJK-27-2016"
+
+
+@pytest.mark.asyncio
+async def test_mock_graph_client_contract_regulations_empty():
+    """Unknown contract returns empty."""
+    client = MockGraphClient()
+    regs = await client.get_related_regulations_for_contract("unknown")
+    assert regs == []
+
+
+@pytest.mark.asyncio
+async def test_mock_graph_client_related_contracts():
+    """Test that MockGraphClient returns amendment chain."""
+    client = MockGraphClient()
+    contracts = await client.get_related_contracts("contract-001")
+    assert len(contracts) == 1
+    assert contracts[0].contract_type == "amendment"

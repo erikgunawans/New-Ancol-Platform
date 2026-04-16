@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from ancol_common.auth.rbac import ROLE_PERMISSIONS, require_permission
+from ancol_common.auth.rbac import (
+    GATE_PERMISSIONS,
+    ROLE_PERMISSIONS,
+    check_gate_permission,
+    get_user_visible_gates,
+    require_permission,
+)
 from ancol_common.schemas.mom import UserRole
 
 
@@ -69,6 +75,81 @@ class TestPermissionMatrixCompleteness:
         assert UserRole.KOMISARIS not in allowed
         assert UserRole.BUSINESS_DEV not in allowed
         assert UserRole.CORP_SECRETARY not in allowed
+
+
+class TestGatePermissions:
+    """Verify GATE_PERMISSIONS mapping and helper functions."""
+
+    def test_gate_permissions_has_all_gates(self):
+        assert "hitl_gate_1" in GATE_PERMISSIONS
+        assert "hitl_gate_2" in GATE_PERMISSIONS
+        assert "hitl_gate_3" in GATE_PERMISSIONS
+        assert "hitl_gate_4" in GATE_PERMISSIONS
+
+    def test_gate_4_has_dual_approval(self):
+        perms = GATE_PERMISSIONS["hitl_gate_4"]
+        assert "hitl:gate_4_corpsec" in perms
+        assert "hitl:gate_4_audit" in perms
+
+    def test_check_gate_permission_corp_secretary(self):
+        assert check_gate_permission(UserRole.CORP_SECRETARY, "hitl_gate_1") is True
+        assert check_gate_permission(UserRole.CORP_SECRETARY, "hitl_gate_2") is False
+        assert check_gate_permission(UserRole.CORP_SECRETARY, "hitl_gate_3") is False
+        assert check_gate_permission(UserRole.CORP_SECRETARY, "hitl_gate_4") is True
+
+    def test_check_gate_permission_internal_auditor(self):
+        assert check_gate_permission(UserRole.INTERNAL_AUDITOR, "hitl_gate_1") is False
+        assert check_gate_permission(UserRole.INTERNAL_AUDITOR, "hitl_gate_2") is True
+        assert check_gate_permission(UserRole.INTERNAL_AUDITOR, "hitl_gate_3") is True
+        assert check_gate_permission(UserRole.INTERNAL_AUDITOR, "hitl_gate_4") is True
+
+    def test_check_gate_permission_legal_compliance(self):
+        assert check_gate_permission(UserRole.LEGAL_COMPLIANCE, "hitl_gate_1") is False
+        assert check_gate_permission(UserRole.LEGAL_COMPLIANCE, "hitl_gate_2") is True
+        assert check_gate_permission(UserRole.LEGAL_COMPLIANCE, "hitl_gate_3") is False
+        assert check_gate_permission(UserRole.LEGAL_COMPLIANCE, "hitl_gate_4") is False
+
+    def test_check_gate_permission_admin(self):
+        for gate in GATE_PERMISSIONS:
+            assert check_gate_permission(UserRole.ADMIN, gate) is True
+
+    def test_check_gate_permission_non_reviewer_roles(self):
+        for role in [UserRole.KOMISARIS, UserRole.CONTRACT_MANAGER, UserRole.BUSINESS_DEV]:
+            for gate in GATE_PERMISSIONS:
+                assert check_gate_permission(role, gate) is False
+
+    def test_check_gate_permission_unknown_gate(self):
+        assert check_gate_permission(UserRole.ADMIN, "hitl_gate_99") is False
+
+    def test_get_user_visible_gates_corp_secretary(self):
+        gates = get_user_visible_gates(UserRole.CORP_SECRETARY)
+        assert "hitl_gate_1" in gates
+        assert "hitl_gate_4" in gates
+        assert "hitl_gate_2" not in gates
+        assert "hitl_gate_3" not in gates
+
+    def test_get_user_visible_gates_internal_auditor(self):
+        gates = get_user_visible_gates(UserRole.INTERNAL_AUDITOR)
+        assert "hitl_gate_2" in gates
+        assert "hitl_gate_3" in gates
+        assert "hitl_gate_4" in gates
+        assert "hitl_gate_1" not in gates
+
+    def test_get_user_visible_gates_legal_compliance(self):
+        gates = get_user_visible_gates(UserRole.LEGAL_COMPLIANCE)
+        assert gates == ["hitl_gate_2"]
+
+    def test_get_user_visible_gates_admin(self):
+        gates = get_user_visible_gates(UserRole.ADMIN)
+        assert len(gates) == 4
+
+    def test_get_user_visible_gates_komisaris(self):
+        gates = get_user_visible_gates(UserRole.KOMISARIS)
+        assert gates == []
+
+    def test_check_gate_permission_accepts_string_role(self):
+        assert check_gate_permission("corp_secretary", "hitl_gate_1") is True
+        assert check_gate_permission("internal_auditor", "hitl_gate_1") is False
 
 
 class TestRequirePermissionDependency:

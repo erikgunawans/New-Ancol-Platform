@@ -95,6 +95,18 @@ async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def get_users_with_phone_by_role(session: AsyncSession, role: str) -> list[User]:
+    """Fetch active users by role who have a phone number set."""
+    result = await session.execute(
+        select(User).where(
+            User.role == role,
+            User.is_active.is_(True),
+            User.phone_number.isnot(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
 # ── Batch Job Operations ──
 
 
@@ -435,7 +447,7 @@ async def check_obligation_deadlines(session: AsyncSession) -> dict:
     )
     transitioned_due_soon = due_soon_result.rowcount
 
-    # Phase 3: Reminder flags (log only — WhatsApp deferred until User model has phone field)
+    # Phase 3: Reminder flags (WhatsApp + email via dispatcher when notification_channels enabled)
     reminders_flagged = 0
 
     for days_ahead, flag_col in [

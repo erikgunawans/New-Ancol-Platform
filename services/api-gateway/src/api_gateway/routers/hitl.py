@@ -5,7 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from ancol_common.auth.rbac import require_permission
+from ancol_common.auth.mfa import require_mfa_verified
+from ancol_common.auth.rbac import check_gate_permission, get_user_visible_gates, require_permission
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import (
@@ -17,12 +18,13 @@ from ancol_common.db.models import (
     Report,
 )
 from ancol_common.db.repository import transition_document_status
+from ancol_common.notifications.dispatcher import notify_gate_reviewers
 from ancol_common.pubsub.publisher import publish_message
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 
-router = APIRouter(prefix="/hitl", tags=["HITL Review"])
+router = APIRouter(prefix="/hitl", tags=["HITL Review"], dependencies=[require_mfa_verified()])
 
 
 class HitlQueueItem(BaseModel):
@@ -90,16 +92,26 @@ GATE_ENTITY_TYPE = {
 
 @router.get("/queue", response_model=HitlQueueResponse)
 async def get_review_queue(
+    request: Request,
     _auth=require_permission("hitl:decide"),
     gate: str | None = Query(None),
     limit: int = Query(50, le=200),
 ):
-    """Get the HITL review queue — documents awaiting human review."""
-    async with get_session() as session:
-        gate_statuses = list(GATE_STATUS_MAP.values())
-        if gate and gate in GATE_STATUS_MAP:
-            gate_statuses = [GATE_STATUS_MAP[gate]]
+    """Get the HITL review queue — filtered to gates the user's role can review."""
+    user_role = request.state.user_role
+    visible_gates = get_user_visible_gates(user_role)
 
+    if gate and gate in GATE_STATUS_MAP:
+        gate_statuses = [GATE_STATUS_MAP[gate]]
+        # Filter to only gates this role can see
+        gate_statuses = [s for s in gate_statuses if s in visible_gates]
+    else:
+        gate_statuses = visible_gates
+
+    if not gate_statuses:
+        return HitlQueueResponse(items=[], total=0)
+
+    async with get_session() as session:
         query = (
             select(Document)
             .where(Document.status.in_(gate_statuses))
@@ -124,7 +136,11 @@ async def get_review_queue(
 
 
 @router.get("/review/{document_id}", response_model=HitlReviewDetail)
-async def get_review_detail(document_id: str, _auth=require_permission("hitl:decide")):
+async def get_review_detail(
+    document_id: str,
+    request: Request,
+    _auth=require_permission("hitl:decide"),
+):
     """Get the AI output for a document pending HITL review."""
     async with get_session() as session:
         doc = await session.get(Document, uuid.UUID(document_id))
@@ -132,6 +148,12 @@ async def get_review_detail(document_id: str, _auth=require_permission("hitl:dec
             raise HTTPException(status_code=404, detail="Document not found")
 
         gate = doc.status
+
+        if not check_gate_permission(request.state.user_role, gate):
+            raise HTTPException(
+                status_code=403,
+                detail=f"You do not have permission to review {gate}",
+            )
         ai_output = {}
         deviation_flags = None
         red_flags = None
@@ -203,6 +225,7 @@ async def get_review_detail(document_id: str, _auth=require_permission("hitl:dec
 async def submit_decision(
     document_id: str,
     body: HitlDecisionRequest,
+    request: Request,
     _auth=require_permission("hitl:decide"),
 ):
     """Submit a HITL decision (approve/reject/modify)."""
@@ -216,6 +239,12 @@ async def submit_decision(
         gate = doc.status
         if gate not in GATE_APPROVE_TRANSITIONS:
             raise HTTPException(status_code=400, detail=f"Document not in a HITL gate: {gate}")
+
+        if not check_gate_permission(request.state.user_role, gate):
+            raise HTTPException(
+                status_code=403,
+                detail=f"You do not have permission to decide on {gate}",
+            )
 
         entity_type = GATE_ENTITY_TYPE.get(gate, "unknown")
         now = datetime.now(UTC)
@@ -240,6 +269,7 @@ async def submit_decision(
         session.add(decision_record)
         await session.flush()
         decision_id = str(decision_record.id)
+        doc_filename = doc.filename
 
     # Transition status
     if body.decision == "approved":
@@ -262,6 +292,16 @@ async def submit_decision(
             "next_status": next_status,
         },
     )
+
+    # Notify reviewers for the next gate (if approved and entering a new HITL gate)
+    if next_status.startswith("hitl_gate_"):
+        async with get_session() as session:
+            await notify_gate_reviewers(
+                document_id=document_id,
+                document_name=doc_filename,
+                gate=next_status,
+                session=session,
+            )
 
     return HitlDecisionResponse(
         decision_id=decision_id,

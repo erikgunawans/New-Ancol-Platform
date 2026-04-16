@@ -52,6 +52,18 @@ class User(Base):
     department: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     manager_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # MFA
+    mfa_secret_encrypted: Mapped[str | None] = mapped_column(String(500))
+    mfa_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
+    mfa_backup_codes_encrypted: Mapped[str | None] = mapped_column(Text)
+    mfa_enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Notifications
+    phone_number: Mapped[str | None] = mapped_column(String(20))
+    notification_channels: Mapped[list | None] = mapped_column(
+        JSONB, server_default='["email", "in_app"]'
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -60,6 +72,7 @@ class User(Base):
     __table_args__ = (
         Index("idx_users_role", "role"),
         Index("idx_users_email", "email"),
+        Index("idx_users_phone", "phone_number", unique=True),
     )
 
 

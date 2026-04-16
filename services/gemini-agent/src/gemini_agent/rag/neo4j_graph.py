@@ -186,11 +186,50 @@ class Neo4jGraphClient(GraphClient):
         self,
         contract_id: str,
     ) -> list[RegulationNode]:
-        """Stub — Neo4j contract graph not implemented."""
-        logger.info("Neo4j contract-regulation query not implemented, returning empty")
-        return []
+        """Return regulations linked to a contract via GOVERNED_BY edges."""
+        cypher = """
+            MATCH (c:Contract)-[:GOVERNED_BY]->(r:Regulation)
+            WHERE c.id = $contract_id
+            RETURN r.id AS id, r.title AS title, r.issuer AS issuer,
+                   r.effective_date AS effective_date, r.status AS status,
+                   r.authority_level AS authority_level
+        """
+        rows = await self._run_query(cypher, {"contract_id": contract_id})
+
+        return [
+            RegulationNode(
+                id=row["id"],
+                title=row.get("title", ""),
+                issuer=row.get("issuer", ""),
+                effective_date=str(row.get("effective_date", "")),
+                status=row.get("status", "active"),
+                authority_level=int(row.get("authority_level", 1)),
+            )
+            for row in rows
+        ]
 
     async def get_related_contracts(self, contract_id: str) -> list[ContractNode]:
-        """Stub — Neo4j contract graph not implemented."""
-        logger.info("Neo4j contract chain query not implemented, returning empty")
-        return []
+        """Return contracts in the amendment/renewal chain (up to 3 hops)."""
+        cypher = """
+            MATCH (c:Contract)-[:AMENDS|RENEWS*1..3]->(related:Contract)
+            WHERE c.id = $contract_id
+            RETURN related.id AS id, related.title AS title,
+                   related.contract_type AS contract_type,
+                   related.status AS status
+        """
+        rows = await self._run_query(cypher, {"contract_id": contract_id})
+
+        return [
+            ContractNode(
+                id=row["id"],
+                title=row.get("title", ""),
+                contract_type=row.get("contract_type", ""),
+                status=row.get("status", ""),
+            )
+            for row in rows
+        ]
+
+    async def close(self) -> None:
+        """Close the Neo4j driver and release connections."""
+        await self._driver.close()
+        logger.info("Neo4jGraphClient closed")

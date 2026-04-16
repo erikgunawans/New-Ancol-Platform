@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from ancol_common.auth.mfa import require_mfa_verified
 from ancol_common.auth.rbac import require_permission
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import Document, Report
@@ -13,7 +14,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 
-router = APIRouter(prefix="/reports", tags=["Reports"])
+router = APIRouter(prefix="/reports", tags=["Reports"], dependencies=[require_mfa_verified()])
 
 
 class ReportSummary(BaseModel):

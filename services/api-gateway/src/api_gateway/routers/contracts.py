@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from pathlib import PurePosixPath
 
+from ancol_common.auth.mfa import require_mfa_verified
 from ancol_common.auth.rbac import require_permission
 from ancol_common.config import get_settings
 from ancol_common.db.connection import get_session
@@ -18,7 +19,7 @@ from ancol_common.pubsub.publisher import publish_message
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/contracts", tags=["Contracts"])
+router = APIRouter(prefix="/contracts", tags=["Contracts"], dependencies=[require_mfa_verified()])
 
 
 class ContractResponse(BaseModel):

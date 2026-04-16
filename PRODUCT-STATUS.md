@@ -1,7 +1,7 @@
 # PRODUCT-STATUS.md — Ancol MoM Compliance System
 
 > Live document tracking the evolution from initial PRD to current product state.
-> Last updated: 2026-04-12
+> Last updated: 2026-04-16
 
 ---
 
@@ -13,7 +13,7 @@
 | **Company** | PT Pembangunan Jaya Ancol Tbk (IDX: PJAA) |
 | **Platform** | Google Cloud Platform — Gemini Enterprise |
 | **Region** | asia-southeast2 (Jakarta) — data sovereignty requirement |
-| **Repository** | https://github.com/erikgunawans/New-Ancol-Platform |
+| **Repository** | <https://github.com/erikgunawans/New-Ancol-Platform> |
 
 ---
 
@@ -22,6 +22,7 @@
 **Problem:** PJAA needs to audit Board of Directors Minutes of Meetings (MoM) against structural compliance standards, substantive consistency, and regulatory alignment. 5+ years of historical MoMs in mixed formats (scans, PDFs, Word). Regulatory corpus scattered across physical copies, shared drives, and DMS.
 
 **Initial requirements:**
+
 - Multi-agent AI system on Gemini Enterprise for automated MoM auditing
 - 4 specialized agents: Extraction, Legal Research, Comparison, Reporting
 - Human-in-the-Loop gates at every stage (no compliance finding reaches the Board without human approval)
@@ -40,6 +41,7 @@
 
 **Date:** 2026-04-08 to 2026-04-09
 **What was built:**
+
 - Shared package `ancol-common` — 9 Pydantic schemas, 15 ORM models, document state machine (14 states), Gemini client factory, config (31 settings)
 - 14 Terraform modules: project-factory, networking, security, storage, database, pubsub, vertex-ai-search, bigquery, cloud-run, monitoring, workflows, document-ai, auth
 - Regulation corpus: 69 chunks from OJK, IDX, UUPT, GCG guidelines, chunked for Vertex AI Search
@@ -60,6 +62,7 @@
 
 **Date:** 2026-04-09
 **What was built:**
+
 - 4 Gemini agent services on FastAPI:
   - **Extraction Agent** (Gemini 2.5 Flash) — structural parser, attendee extraction, resolution parsing, confidence scoring
   - **Legal Research Agent** (Gemini 2.5 Pro) — Vertex AI Search RAG grounding, citation validator (anti-hallucination Layer 3)
@@ -83,6 +86,7 @@
 
 **Date:** 2026-04-09 to 2026-04-10
 **What was built:**
+
 - Next.js 15 frontend with React 19, Tailwind CSS, shadcn/ui
 - 9 pages: Dashboard, Documents, Upload, HITL Review, Reports, Analytics, Batch, Settings, Login
 - Role-based views via IAP + Cloud Identity SSO
@@ -104,6 +108,7 @@
 
 **Date:** 2026-04-10
 **What was built:**
+
 - Batch Engine service — async orchestrator with rate limiter, concurrent processing (up to 50 docs)
 - Token bucket rate limiter for Gemini API QPM control
 - Batch job state machine: queued → running → paused → completed/failed
@@ -124,6 +129,7 @@
 
 **Date:** 2026-04-10 to 2026-04-11
 **What was built:**
+
 - Email Ingest service — Gmail API scanner, Cloud Scheduler (every 15 min), MoM filename detection, meeting date extraction, auto-upload to pipeline
 - Regulation Monitor service — 5-source scraper (OJK, IDX, BAPEPAM-LK, industry, internal), relevance filtering, daily checks at 06:00 WIB
 - Board Portal + ERP adapters (abstract base, graceful degradation when not configured)
@@ -145,6 +151,7 @@
 
 **Date:** 2026-04-12
 **What was built:**
+
 - Fixed Terraform bugs: Pub/Sub `for_each` crash, 3 missing service accounts
 - Wired all 10 Cloud Run services in `dev/main.tf`
 - Cloud Scheduler module (email scan + regulation check)
@@ -167,6 +174,7 @@
 
 **Date:** 2026-04-12
 **What was built:**
+
 - **Architecture pivot:** Primary interface moved from Next.js to Gemini Enterprise chat
 - Vertex AI Agent Builder agent: "Ancol MoM Compliance Assistant"
 - Webhook service (`gemini-agent`) — 8 tool handlers bridging Gemini function calling to API Gateway
@@ -181,6 +189,7 @@
 - Next.js frontend retained as analytics companion (trends, heatmaps, batch progress)
 
 **Key decisions:**
+
 - Vertex AI Agent Builder (not custom agent or Extensions) — native Gemini Enterprise sidebar experience
 - Hybrid HITL — sync Gate 1 because uploader is present, async Gates 2-4 because different roles
 - Spanner Graph over Neo4j — Google-native, same region, no vendor dependency, with Neo4j as documented fallback
@@ -247,6 +256,7 @@ Background: Email Ingest (Gmail, every 15min), Regulation Monitor (OJK/IDX, dail
 ## 4. What's Next
 
 ### Near-term (deployment)
+
 - [ ] `terraform apply` — provision all GCP resources (~80+ resources)
 - [ ] Build and deploy all 11 Cloud Run service images
 - [ ] Run Alembic migration + seed data
@@ -257,6 +267,7 @@ Background: Email Ingest (Gmail, every 15min), Regulation Monitor (OJK/IDX, dail
 - [ ] Gmail OAuth for email-ingest service
 
 ### Mid-term (pilot → production)
+
 - [ ] Bulk upload 500+ historical MoMs
 - [ ] Board Portal API integration (when APIs become available)
 - [ ] ERP integration for RPT data
@@ -265,6 +276,7 @@ Background: Email Ingest (Gmail, every 15min), Regulation Monitor (OJK/IDX, dail
 - [ ] Load testing: concurrent batch processing at scale
 
 ### Long-term (product maturity)
+
 - [ ] Custom Document AI model trained on 10-20 sample MoMs
 - [ ] Multi-language support (English MoMs for international subsidiaries)
 - [ ] Automated regulation corpus updates (Regulation Monitor → Vertex AI Search)
