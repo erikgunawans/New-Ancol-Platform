@@ -613,8 +613,12 @@ async def eval_post_16_archive(ctx: EvaluationContext) -> EvaluatorResult:
             remediation_note="No evidence linked yet.",
         )
     # Batch one query per evidence_type (at most 8 — replaces N+1 per-row lookup).
+    # Registries (rkab_line, rjpp_theme) are references, not stored artifacts,
+    # so they're excluded from the archival check.
     by_type: dict[str, list[uuid.UUID]] = {}
     for ev in evidence_records:
+        if ev.evidence_type in _NON_ARCHIVED_EVIDENCE_TYPES:
+            continue
         by_type.setdefault(ev.evidence_type, []).append(ev.evidence_id)
     missing: list[str] = []
     for ev_type, ids in by_type.items():
@@ -674,6 +678,12 @@ def _extract_attendee_names(attendees: dict | list) -> list[str]:
     return names
 
 
+# Evidence types that don't carry a gcs_uri (registries, not artifacts).
+# Excluded from the archival completeness check — they're referenced, not stored.
+_NON_ARCHIVED_EVIDENCE_TYPES: frozenset[str] = frozenset(
+    {EvidenceType.RKAB_LINE.value, EvidenceType.RJPP_THEME.value}
+)
+
 # Maps evidence_type → (ORM model, name of the gcs URI column).
 # Used by POST-16-ARCHIVE to batch-check archival completeness.
 _EVIDENCE_MODEL_MAP: dict[str, tuple[type, str]] = {
@@ -686,6 +696,18 @@ _EVIDENCE_MODEL_MAP: dict[str, tuple[type, str]] = {
     EvidenceType.OJK_DISCLOSURE.value: (MaterialDisclosure, "gcs_uri"),
     EvidenceType.ORGAN_APPROVAL.value: (OrganApproval, "gcs_uri"),
 }
+
+# Static completeness guard — import-time assertion that every EvidenceType
+# enum value is either mapped to a storage model or explicitly non-archived.
+# When a new EvidenceType is added, this forces the developer to decide which.
+_covered = set(_EVIDENCE_MODEL_MAP.keys()) | _NON_ARCHIVED_EVIDENCE_TYPES
+_enum_values = {t.value for t in EvidenceType}
+assert _covered == _enum_values, (
+    f"EvidenceType drift: {_enum_values ^ _covered} not classified as "
+    "archived (add to _EVIDENCE_MODEL_MAP) or non-archived "
+    "(add to _NON_ARCHIVED_EVIDENCE_TYPES)."
+)
+del _covered, _enum_values
 
 
 # Registry — order matters for deterministic checklist display

@@ -256,7 +256,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("idx_gate5_decision", "bjr_gate5_decisions", ["decision_id"])
+    # Unique index enforces one Gate 5 per decision (prevents duplicate-row race).
+    op.create_index(
+        "idx_gate5_decision", "bjr_gate5_decisions", ["decision_id"], unique=True
+    )
     op.create_index("idx_gate5_final", "bjr_gate5_decisions", ["final_decision"])
 
     # ── Due Diligence reports ──

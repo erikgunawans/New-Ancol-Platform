@@ -1065,7 +1065,8 @@ class BJRGate5Decision(Base):
     )
 
     __table_args__ = (
-        Index("idx_gate5_decision", "decision_id"),
+        # One Gate 5 per decision — prevents duplicate rows under concurrent half-approvals.
+        Index("idx_gate5_decision", "decision_id", unique=True),
         Index("idx_gate5_final", "final_decision"),
     )
 

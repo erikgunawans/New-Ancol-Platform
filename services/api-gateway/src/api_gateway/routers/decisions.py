@@ -33,9 +33,12 @@ from ancol_common.db.models import (
     StrategicDecision,
 )
 from ancol_common.db.repository import transition_decision_status
+from ancol_common.schemas.bjr import Gate5FinalDecision
+from ancol_common.schemas.decision import DecisionStatus
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/decisions", tags=["Strategic Decisions"])
 
@@ -276,7 +279,7 @@ async def decisions_dashboard(
 
         gate_5_result = await session.execute(
             select(func.count(BJRGate5Decision.id)).where(
-                BJRGate5Decision.final_decision == "pending"
+                BJRGate5Decision.final_decision == Gate5FinalDecision.PENDING.value
             )
         )
         gate_5_pending = gate_5_result.scalar() or 0
@@ -591,10 +594,23 @@ gate5_router = APIRouter(
 )
 
 
+_GATE5_VALID_HALF_DECISIONS = frozenset(
+    {Gate5FinalDecision.APPROVED.value, Gate5FinalDecision.REJECTED.value}
+)
+
+
 async def _ensure_gate5_row(session, decision_id: str) -> BJRGate5Decision:
-    """Fetch-or-create the Gate 5 record for a decision."""
+    """Fetch-or-create the Gate 5 record for a decision, serialized via row lock.
+
+    `with_for_update()` holds the row until commit so two concurrent half-approvals
+    can't both see "no row" and both insert. If no row exists yet, the INSERT races
+    the unique constraint (`idx_gate5_decision`); we catch the IntegrityError and
+    re-fetch the row the other request created.
+    """
     result = await session.execute(
-        select(BJRGate5Decision).where(BJRGate5Decision.decision_id == decision_id)
+        select(BJRGate5Decision)
+        .where(BJRGate5Decision.decision_id == decision_id)
+        .with_for_update()
     )
     row = result.scalar_one_or_none()
     if row is not None:
@@ -603,36 +619,54 @@ async def _ensure_gate5_row(session, decision_id: str) -> BJRGate5Decision:
     row = BJRGate5Decision(
         decision_id=decision_id,
         sla_deadline=datetime.now(UTC) + timedelta(days=settings.bjr_gate5_sla_days),
-        final_decision="pending",
+        final_decision=Gate5FinalDecision.PENDING.value,
     )
     session.add(row)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        # Another request just created it — fetch and return that row.
+        await session.rollback()
+        result = await session.execute(
+            select(BJRGate5Decision)
+            .where(BJRGate5Decision.decision_id == decision_id)
+            .with_for_update()
+        )
+        return result.scalar_one()
     return row
 
 
 async def _maybe_finalize_gate5(session, gate5: BJRGate5Decision, decision_id: str) -> None:
-    """When both halves have decided, set final_decision + lock the decision."""
+    """When both halves have decided, set final_decision + lock the decision.
+
+    The row is held by SELECT FOR UPDATE from `_ensure_gate5_row`, so the
+    "both decided" check runs on the latest state — no lost-update race even
+    if the other half was committed milliseconds earlier.
+    """
     k_decided = gate5.komisaris_decision is not None
     l_decided = gate5.legal_decision is not None
     if not (k_decided and l_decided):
         return
-    if gate5.komisaris_decision == "approved" and gate5.legal_decision == "approved":
-        gate5.final_decision = "approved"
+    approved = Gate5FinalDecision.APPROVED.value
+    both_approved = gate5.komisaris_decision == approved and gate5.legal_decision == approved
+    if both_approved:
+        gate5.final_decision = approved
         gate5.locked_at = datetime.now(UTC)
-        # Lock the decision
-        d_result = await session.execute(
-            select(StrategicDecision).where(StrategicDecision.id == decision_id)
+        # Lock the decision via the state machine (rejects if not in bjr_gate_5).
+        locked = await transition_decision_status(
+            session, decision_id, DecisionStatus.BJR_LOCKED.value
         )
-        decision = d_result.scalar_one_or_none()
-        if decision is not None:
+        if locked:
+            d_result = await session.execute(
+                select(StrategicDecision).where(StrategicDecision.id == decision_id)
+            )
+            decision = d_result.scalar_one()
             decision.is_bjr_locked = True
             decision.locked_at = gate5.locked_at
             decision.locked_by_komisaris_id = gate5.approver_komisaris_id
             decision.locked_by_legal_id = gate5.approver_legal_id
-            decision.status = "bjr_locked"
-            decision.updated_at = datetime.now(UTC)
     else:
-        gate5.final_decision = "rejected"
+        gate5.final_decision = Gate5FinalDecision.REJECTED.value
 
 
 @gate5_router.get("/{decision_id}/gate5", response_model=Gate5State)
@@ -656,11 +690,11 @@ async def gate5_komisaris(
     payload: Gate5HalfRequest,
     _auth=require_permission("bjr:gate_5_komisaris"),
 ):
-    if payload.decision not in ("approved", "rejected"):
+    if payload.decision not in _GATE5_VALID_HALF_DECISIONS:
         raise HTTPException(422, "decision must be 'approved' or 'rejected'")
     async with get_session() as session:
         gate5 = await _ensure_gate5_row(session, decision_id)
-        if gate5.final_decision != "pending":
+        if gate5.final_decision != Gate5FinalDecision.PENDING.value:
             raise HTTPException(409, "Gate 5 already finalized")
         if gate5.komisaris_decision is not None:
             raise HTTPException(409, "Komisaris half already decided")
@@ -680,11 +714,11 @@ async def gate5_legal(
     payload: Gate5HalfRequest,
     _auth=require_permission("bjr:gate_5_legal"),
 ):
-    if payload.decision not in ("approved", "rejected"):
+    if payload.decision not in _GATE5_VALID_HALF_DECISIONS:
         raise HTTPException(422, "decision must be 'approved' or 'rejected'")
     async with get_session() as session:
         gate5 = await _ensure_gate5_row(session, decision_id)
-        if gate5.final_decision != "pending":
+        if gate5.final_decision != Gate5FinalDecision.PENDING.value:
             raise HTTPException(409, "Gate 5 already finalized")
         if gate5.legal_decision is not None:
             raise HTTPException(409, "Legal half already decided")
