@@ -217,7 +217,9 @@ async def mfa_confirm(
 
 @router.post("/me/mfa/verify", response_model=MFAVerifyResponse)
 async def mfa_verify(
-    request: Request, body: MFAVerifyRequest, response: Response,
+    request: Request,
+    body: MFAVerifyRequest,
+    response: Response,
     _auth=require_permission("users:update_profile"),
 ):
     """Verify TOTP or backup code for current session. Sets MFA cookie."""
@@ -236,9 +238,7 @@ async def mfa_verify(
             if not verify_totp_code(secret, code):
                 raise HTTPException(status_code=401, detail="Invalid TOTP code")
         elif "-" in code and user.mfa_backup_codes_encrypted:
-            valid, updated_hashes = verify_backup_code(
-                code, user.mfa_backup_codes_encrypted
-            )
+            valid, updated_hashes = verify_backup_code(code, user.mfa_backup_codes_encrypted)
             if not valid:
                 raise HTTPException(status_code=401, detail="Invalid backup code")
             user.mfa_backup_codes_encrypted = updated_hashes
@@ -272,9 +272,7 @@ async def mfa_disable(
             raise HTTPException(status_code=400, detail="MFA not enabled")
 
         if is_mfa_required_for_role(user.role):
-            raise HTTPException(
-                status_code=403, detail="MFA is mandatory for your role"
-            )
+            raise HTTPException(status_code=403, detail="MFA is mandatory for your role")
 
         secret = decrypt_secret(user.mfa_secret_encrypted)
         if not verify_totp_code(secret, body.code):

@@ -184,8 +184,7 @@ async def eval_pd_03_rkab(ctx: EvaluationContext) -> EvaluatorResult:
         evidence_refs=[{"type": "rkab_line", "id": str(rkab.id), "code": rkab.code}],
         regulation_basis=["PERGUB-DKI-127-2019"],
         remediation_note=(
-            f"RKAB line item '{rkab.code}' is in '{rkab.approval_status}' - "
-            "needs RUPS approval."
+            f"RKAB line item '{rkab.code}' is in '{rkab.approval_status}' - needs RUPS approval."
         ),
     )
 
@@ -664,9 +663,7 @@ async def eval_post_14_auditcom(ctx: EvaluationContext) -> EvaluatorResult:
             item_code=BJRItemCode.POST_14_AUDITCOM.value,
             phase=ChecklistPhase.POST_DECISION.value,
             status=ChecklistItemStatus.SATISFIED.value,
-            evidence_refs=[
-                {"type": "audit_committee_report", "id": str(r.id)} for r in matching
-            ],
+            evidence_refs=[{"type": "audit_committee_report", "id": str(r.id)} for r in matching],
             regulation_basis=["PERGUB-DKI-13-2020", "POJK-35-2014"],
         )
     return EvaluatorResult(
@@ -738,9 +735,7 @@ async def eval_post_16_archive(ctx: EvaluationContext) -> EvaluatorResult:
             continue
         model, uri_attr = entry
         uri_col = getattr(model, uri_attr)
-        rows = await ctx.session.execute(
-            select(model.id, uri_col).where(model.id.in_(ids))
-        )
+        rows = await ctx.session.execute(select(model.id, uri_col).where(model.id.in_(ids)))
         uris = dict(rows.all())
         for ev_id in ids:
             if uris.get(ev_id) is None:

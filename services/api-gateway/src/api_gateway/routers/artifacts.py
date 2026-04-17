@@ -101,9 +101,7 @@ async def list_dd_reports(
 async def get_dd_report(dd_id: str, _auth=require_permission("dd:review")):
     async with get_session() as session:
         r = (
-            await session.execute(
-                select(DueDiligenceReport).where(DueDiligenceReport.id == dd_id)
-            )
+            await session.execute(select(DueDiligenceReport).where(DueDiligenceReport.id == dd_id))
         ).scalar_one_or_none()
     if r is None:
         raise HTTPException(404, "DD report not found")
@@ -118,9 +116,7 @@ async def review_dd_report(
 ):
     async with get_session() as session:
         r = (
-            await session.execute(
-                select(DueDiligenceReport).where(DueDiligenceReport.id == dd_id)
-            )
+            await session.execute(select(DueDiligenceReport).where(DueDiligenceReport.id == dd_id))
         ).scalar_one_or_none()
         if r is None:
             raise HTTPException(404, "DD report not found")

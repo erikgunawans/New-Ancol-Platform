@@ -11,6 +11,7 @@ class TestBJRRouterRegistration:
     @pytest.fixture
     def app(self):
         from api_gateway.main import app
+
         return app
 
     def test_rkab_router_mounted(self, app):
@@ -89,6 +90,7 @@ class TestBJREndpointCount:
     @pytest.fixture
     def app(self):
         from api_gateway.main import app
+
         return app
 
     def test_bjr_endpoint_count(self, app):
@@ -97,10 +99,7 @@ class TestBJREndpointCount:
             getattr(r, "path", None)
             for r in app.routes
             if getattr(r, "path", None)
-            and any(
-                p in r.path
-                for p in ("/api/rkab", "/api/rjpp", "/api/artifacts")
-            )
+            and any(p in r.path for p in ("/api/rkab", "/api/rjpp", "/api/artifacts"))
         }
         # Exact count can drift as we add sub-resources; at minimum we expect 15
         assert len(bjr_paths) >= 15, f"Expected ≥15 BJR paths, got {len(bjr_paths)}: {bjr_paths}"

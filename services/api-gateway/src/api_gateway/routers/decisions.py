@@ -262,9 +262,7 @@ async def decisions_dashboard(
             select(
                 func.count(StrategicDecision.id),
                 func.avg(StrategicDecision.bjr_readiness_score),
-                func.count(StrategicDecision.id).filter(
-                    StrategicDecision.is_bjr_locked.is_(True)
-                ),
+                func.count(StrategicDecision.id).filter(StrategicDecision.is_bjr_locked.is_(True)),
             )
         )
         total, avg_score, locked_count = agg_result.one()
@@ -585,9 +583,7 @@ async def get_readiness(
             else None
         ),
         regional_compliance_score=(
-            float(d.regional_compliance_score)
-            if d.regional_compliance_score is not None
-            else None
+            float(d.regional_compliance_score) if d.regional_compliance_score is not None else None
         ),
         checklist=[_checklist_to_response(c) for c in items],
     )
@@ -719,9 +715,7 @@ async def _maybe_finalize_gate5(session, gate5: BJRGate5Decision, decision_id: s
         # Transition the decision to `rejected` so it doesn't stay stuck in
         # `bjr_gate_5` forever. Log but don't fail if the state machine refuses
         # (decision might already have moved on via admin action).
-        await transition_decision_status(
-            session, decision_id, DecisionStatus.REJECTED.value
-        )
+        await transition_decision_status(session, decision_id, DecisionStatus.REJECTED.value)
 
 
 @gate5_router.get("/{decision_id}/gate5", response_model=Gate5State)

@@ -148,9 +148,7 @@ async def get_rkab_line(
     _auth=require_permission("rkab:view"),
 ):
     async with get_session() as session:
-        result = await session.execute(
-            select(RKABLineItem).where(RKABLineItem.id == rkab_id)
-        )
+        result = await session.execute(select(RKABLineItem).where(RKABLineItem.id == rkab_id))
         item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(404, "RKAB line item not found")
@@ -164,9 +162,7 @@ async def update_rkab_line(
     _auth=require_permission("rkab:manage"),
 ):
     async with get_session() as session:
-        result = await session.execute(
-            select(RKABLineItem).where(RKABLineItem.id == rkab_id)
-        )
+        result = await session.execute(select(RKABLineItem).where(RKABLineItem.id == rkab_id))
         item = result.scalar_one_or_none()
         if item is None:
             raise HTTPException(404, "RKAB line item not found")
