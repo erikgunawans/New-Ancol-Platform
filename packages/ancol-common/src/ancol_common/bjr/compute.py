@@ -11,6 +11,7 @@ phase) from the bjr-agent Cloud Run service.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,7 +23,37 @@ from ancol_common.bjr.evaluators import EVALUATORS, EvaluationContext, Evaluator
 from ancol_common.bjr.scorer import BJRScoreResult, ChecklistSnapshot, compute_scores
 from ancol_common.config import get_settings
 from ancol_common.db.models import BJRChecklistItemRecord, StrategicDecision
-from ancol_common.schemas.bjr import ChecklistItemStatus
+from ancol_common.schemas.bjr import BJRItemCode, ChecklistItemStatus, ChecklistPhase
+
+logger = logging.getLogger(__name__)
+
+# Map evaluator function name → (item_code, phase) for synthetic failure results.
+# Mirrors the 16 evaluators in EVALUATORS. Used only when an evaluator raises —
+# the synthetic result keeps the checklist observable instead of killing compute.
+_EVALUATOR_METADATA: dict[str, tuple[str, str]] = {
+    "eval_pd_01_dd": (BJRItemCode.PD_01_DD.value, ChecklistPhase.PRE_DECISION.value),
+    "eval_pd_02_fs": (BJRItemCode.PD_02_FS.value, ChecklistPhase.PRE_DECISION.value),
+    "eval_pd_03_rkab": (BJRItemCode.PD_03_RKAB.value, ChecklistPhase.PRE_DECISION.value),
+    "eval_pd_04_rjpp": (BJRItemCode.PD_04_RJPP.value, ChecklistPhase.PRE_DECISION.value),
+    "eval_pd_05_coi": (BJRItemCode.PD_05_COI.value, ChecklistPhase.PRE_DECISION.value),
+    "eval_d_06_quorum": (BJRItemCode.D_06_QUORUM.value, ChecklistPhase.DECISION.value),
+    "eval_d_07_signed": (BJRItemCode.D_07_SIGNED.value, ChecklistPhase.DECISION.value),
+    "eval_d_08_risk": (BJRItemCode.D_08_RISK.value, ChecklistPhase.DECISION.value),
+    "eval_d_09_legal": (BJRItemCode.D_09_LEGAL.value, ChecklistPhase.DECISION.value),
+    "eval_d_10_organ": (BJRItemCode.D_10_ORGAN.value, ChecklistPhase.DECISION.value),
+    "eval_d_11_disclose": (BJRItemCode.D_11_DISCLOSE.value, ChecklistPhase.DECISION.value),
+    "eval_post_12_monitor": (BJRItemCode.POST_12_MONITOR.value, ChecklistPhase.POST_DECISION.value),
+    "eval_post_13_spi": (BJRItemCode.POST_13_SPI.value, ChecklistPhase.POST_DECISION.value),
+    "eval_post_14_auditcom": (
+        BJRItemCode.POST_14_AUDITCOM.value,
+        ChecklistPhase.POST_DECISION.value,
+    ),
+    "eval_post_15_dewas": (BJRItemCode.POST_15_DEWAS.value, ChecklistPhase.POST_DECISION.value),
+    "eval_post_16_archive": (
+        BJRItemCode.POST_16_ARCHIVE.value,
+        ChecklistPhase.POST_DECISION.value,
+    ),
+}
 
 
 @dataclass
@@ -65,10 +96,36 @@ async def compute_bjr(
         materiality_threshold_idr=settings.bjr_materiality_threshold_idr,
     )
 
-    # Run all 16 evaluators sequentially (they share one session)
+    # Run all 16 evaluators sequentially (they share one session). An evaluator
+    # that raises MUST NOT abort the whole compute — we synthesize a FLAGGED
+    # result so the checklist stays observable, log the traceback, and continue.
+    # Without this, a single bad extraction shape or a transient DB hiccup silently
+    # nukes BJR scoring for the decision.
     results: list[EvaluatorResult] = []
     for evaluator in EVALUATORS:
-        results.append(await evaluator(ctx))
+        try:
+            results.append(await evaluator(ctx))
+        except Exception as exc:
+            item_code, phase = _EVALUATOR_METADATA.get(
+                evaluator.__name__, ("UNKNOWN", ChecklistPhase.PRE_DECISION.value)
+            )
+            logger.exception(
+                "bjr.evaluator.failed decision=%s evaluator=%s item=%s",
+                decision_id,
+                evaluator.__name__,
+                item_code,
+            )
+            results.append(
+                EvaluatorResult(
+                    item_code=item_code,
+                    phase=phase,
+                    status=ChecklistItemStatus.FLAGGED.value,
+                    remediation_note=(
+                        f"Evaluator error ({exc.__class__.__name__}); "
+                        "contact admin and re-run compute after fix."
+                    ),
+                )
+            )
 
     # Upsert checklist rows
     triggered_by_uuid = uuid.UUID(triggered_by) if triggered_by else None

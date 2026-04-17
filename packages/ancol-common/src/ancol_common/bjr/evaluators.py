@@ -2,9 +2,10 @@
 
 Each evaluator takes an `EvaluationContext` and returns an `EvaluatorResult`
 describing the item's status, AI confidence, evidence references, and
-regulation basis. Evaluators are deterministic DB queries in v1; AI-assist
-items (PD-03, PD-04, D-08) use simple heuristics until the bjr-agent service
-wraps them with Gemini calls in a follow-up phase.
+regulation basis. Most evaluators are deterministic DB queries; only PD-05-COI
+(substring match against RelatedPartyEntity) and D-08-RISK (keyword scan on
+MoM full_text) use heuristics in v1 until the bjr-agent service wraps them
+with Gemini calls in a follow-up phase.
 
 Contract: every evaluator is tagged with its `item_code` and registered in
 `EVALUATORS`. The orchestrator (`compute.py`) iterates all 16 and upserts
@@ -242,10 +243,14 @@ async def eval_pd_05_coi(ctx: EvaluationContext) -> EvaluatorResult:
     v1 heuristic: if any linked MoM references an attendee whose name matches
     an active RelatedPartyEntity, flag. More sophisticated matching awaits
     AI-assist in bjr-agent service.
+
+    Defensive: if attendee extraction is malformed (non-list/dict shape, zero
+    names parsed from a non-empty blob), we FLAG instead of silently returning
+    SATISFIED — otherwise a corrupt extraction would falsely pass a CRITICAL
+    BJR item. Minimum 4-char tokens prevent false positives on short names.
     """
     mom_ids = await _linked_evidence_ids(ctx, evidence_type=EvidenceType.MOM.value)
     if not mom_ids:
-        # No MoMs linked yet — PD-05 applies only when Direksi involved
         return EvaluatorResult(
             item_code=BJRItemCode.PD_05_COI.value,
             phase=ChecklistPhase.PRE_DECISION.value,
@@ -253,24 +258,53 @@ async def eval_pd_05_coi(ctx: EvaluationContext) -> EvaluatorResult:
             regulation_basis=["UU-PT-40-2007"],
             remediation_note="Link at least one board MoM to enable COI scan.",
         )
-    # Fetch extractions for linked MoMs
-    extractions = await ctx.session.execute(
+    extractions_result = await ctx.session.execute(
         select(Extraction).where(Extraction.document_id.in_(mom_ids))
     )
-    extractions = list(extractions.scalars().all())
+    extractions = list(extractions_result.scalars().all())
     rpt_result = await ctx.session.execute(
         select(RelatedPartyEntity).where(RelatedPartyEntity.is_active.is_(True))
     )
-    rpt_names = {r.entity_name.lower().strip() for r in rpt_result.scalars().all()}
+    # Minimum 4-char RPT names avoid false positives on short tokens ("PT", "CV").
+    rpt_names = {
+        r.entity_name.lower().strip()
+        for r in rpt_result.scalars().all()
+        if len(r.entity_name.strip()) >= 4
+    }
 
     flagged_attendees: list[str] = []
+    malformed_count = 0
     for ext in extractions:
-        attendees = ext.attendees or {}
+        attendees = ext.attendees
+        # Distinguish missing data (skip) from malformed data (flag).
+        if attendees is None or (isinstance(attendees, (dict, list)) and not attendees):
+            continue
+        if not isinstance(attendees, (dict, list)):
+            malformed_count += 1
+            continue
         names = _extract_attendee_names(attendees)
+        # Attendees blob is truthy but yielded zero names — malformed shape.
+        if not names and attendees:
+            malformed_count += 1
+            continue
         for n in names:
-            if any(rpt_name in n.lower() or n.lower() in rpt_name for rpt_name in rpt_names):
+            n_lower = n.lower().strip()
+            if len(n_lower) < 4:
+                continue
+            if any(rpt_name in n_lower or n_lower in rpt_name for rpt_name in rpt_names):
                 flagged_attendees.append(n)
 
+    if malformed_count:
+        return EvaluatorResult(
+            item_code=BJRItemCode.PD_05_COI.value,
+            phase=ChecklistPhase.PRE_DECISION.value,
+            status=ChecklistItemStatus.FLAGGED.value,
+            regulation_basis=["UU-PT-40-2007", "POJK-42-2020"],
+            remediation_note=(
+                f"Attendee data malformed in {malformed_count} linked extraction(s); "
+                "cannot verify COI. Re-extract or manually confirm abstention records."
+            ),
+        )
     if flagged_attendees:
         return EvaluatorResult(
             item_code=BJRItemCode.PD_05_COI.value,
@@ -295,6 +329,17 @@ async def eval_pd_05_coi(ctx: EvaluationContext) -> EvaluatorResult:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+def _extract_bool_field(structured_mom: dict | None, field: str) -> bool | None:
+    """Return True/False if the field is an explicit bool, None if missing/invalid.
+
+    Distinguishing missing from False matters: a missing field is a data gap
+    (stale extraction, schema drift) while explicit False is a real violation.
+    Treating them identically would conflate "unknown" with "confirmed bad".
+    """
+    value = (structured_mom or {}).get(field)
+    return value if isinstance(value, bool) else None
+
+
 async def eval_d_06_quorum(ctx: EvaluationContext) -> EvaluatorResult:
     """D-06-QUORUM (CRITICAL): Board meeting held with valid quorum."""
     mom_ids = await _linked_evidence_ids(ctx, evidence_type=EvidenceType.MOM.value)
@@ -306,24 +351,40 @@ async def eval_d_06_quorum(ctx: EvaluationContext) -> EvaluatorResult:
             regulation_basis=["UU-PT-40-2007", "ADART-PJAA"],
             remediation_note="Link the board MoM that authorizes this decision.",
         )
-    extractions = await ctx.session.execute(
+    extractions_result = await ctx.session.execute(
         select(Extraction).where(Extraction.document_id.in_(mom_ids))
     )
-    extractions = list(extractions.scalars().all())
-    all_quorum_met = all((e.structured_mom or {}).get("quorum_met") is True for e in extractions)
-    if all_quorum_met and extractions:
+    extractions = list(extractions_result.scalars().all())
+    missing = [
+        e for e in extractions if _extract_bool_field(e.structured_mom, "quorum_met") is None
+    ]
+    explicit_false = [
+        e for e in extractions if _extract_bool_field(e.structured_mom, "quorum_met") is False
+    ]
+    if missing:
         return EvaluatorResult(
             item_code=BJRItemCode.D_06_QUORUM.value,
             phase=ChecklistPhase.DECISION.value,
-            status=ChecklistItemStatus.SATISFIED.value,
+            status=ChecklistItemStatus.NOT_STARTED.value,
             regulation_basis=["UU-PT-40-2007", "ADART-PJAA"],
+            remediation_note=(
+                f"Extraction missing `quorum_met` on {len(missing)} linked MoM(s); "
+                "re-extract or manually verify quorum."
+            ),
+        )
+    if explicit_false:
+        return EvaluatorResult(
+            item_code=BJRItemCode.D_06_QUORUM.value,
+            phase=ChecklistPhase.DECISION.value,
+            status=ChecklistItemStatus.FLAGGED.value,
+            regulation_basis=["UU-PT-40-2007", "ADART-PJAA"],
+            remediation_note="One or more linked MoMs did not meet quorum.",
         )
     return EvaluatorResult(
         item_code=BJRItemCode.D_06_QUORUM.value,
         phase=ChecklistPhase.DECISION.value,
-        status=ChecklistItemStatus.FLAGGED.value,
+        status=ChecklistItemStatus.SATISFIED.value,
         regulation_basis=["UU-PT-40-2007", "ADART-PJAA"],
-        remediation_note="One or more linked MoMs did not meet quorum.",
     )
 
 
@@ -337,23 +398,44 @@ async def eval_d_07_signed(ctx: EvaluationContext) -> EvaluatorResult:
             status=ChecklistItemStatus.NOT_STARTED.value,
             regulation_basis=["UU-PT-40-2007", "POJK-21-2015"],
         )
-    extractions = await ctx.session.execute(
+    extractions_result = await ctx.session.execute(
         select(Extraction).where(Extraction.document_id.in_(mom_ids))
     )
-    extractions = list(extractions.scalars().all())
-    all_signed = all(
-        (e.structured_mom or {}).get("signatures_complete") is True for e in extractions
-    )
+    extractions = list(extractions_result.scalars().all())
+    missing = [
+        e
+        for e in extractions
+        if _extract_bool_field(e.structured_mom, "signatures_complete") is None
+    ]
+    explicit_false = [
+        e
+        for e in extractions
+        if _extract_bool_field(e.structured_mom, "signatures_complete") is False
+    ]
+    if missing:
+        return EvaluatorResult(
+            item_code=BJRItemCode.D_07_SIGNED.value,
+            phase=ChecklistPhase.DECISION.value,
+            status=ChecklistItemStatus.NOT_STARTED.value,
+            regulation_basis=["UU-PT-40-2007", "POJK-21-2015"],
+            remediation_note=(
+                f"Extraction missing `signatures_complete` on {len(missing)} linked MoM(s); "
+                "re-extract or manually verify."
+            ),
+        )
+    if explicit_false:
+        return EvaluatorResult(
+            item_code=BJRItemCode.D_07_SIGNED.value,
+            phase=ChecklistPhase.DECISION.value,
+            status=ChecklistItemStatus.FLAGGED.value,
+            regulation_basis=["UU-PT-40-2007", "POJK-21-2015"],
+            remediation_note="One or more linked MoMs is not fully signed.",
+        )
     return EvaluatorResult(
         item_code=BJRItemCode.D_07_SIGNED.value,
         phase=ChecklistPhase.DECISION.value,
-        status=(
-            ChecklistItemStatus.SATISFIED.value
-            if all_signed and extractions
-            else ChecklistItemStatus.FLAGGED.value
-        ),
+        status=ChecklistItemStatus.SATISFIED.value,
         regulation_basis=["UU-PT-40-2007", "POJK-21-2015"],
-        remediation_note=(None if all_signed else "One or more linked MoMs is not fully signed."),
     )
 
 

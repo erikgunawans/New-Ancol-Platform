@@ -716,6 +716,12 @@ async def _maybe_finalize_gate5(session, gate5: BJRGate5Decision, decision_id: s
         decision.locked_by_legal_id = gate5.approver_legal_id
     else:
         gate5.final_decision = Gate5FinalDecision.REJECTED.value
+        # Transition the decision to `rejected` so it doesn't stay stuck in
+        # `bjr_gate_5` forever. Log but don't fail if the state machine refuses
+        # (decision might already have moved on via admin action).
+        await transition_decision_status(
+            session, decision_id, DecisionStatus.REJECTED.value
+        )
 
 
 @gate5_router.get("/{decision_id}/gate5", response_model=Gate5State)

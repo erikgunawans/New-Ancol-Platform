@@ -54,7 +54,10 @@ DECISION_TRANSITIONS: dict[str, list[str]] = {
     "approved": ["executing"],
     "executing": ["monitoring"],
     "monitoring": ["bjr_gate_5"],
-    "bjr_gate_5": ["bjr_locked", "monitoring"],
+    # bjr_gate_5 can go to: locked (both halves approved),
+    # monitoring (sent back for more evidence),
+    # or rejected (either half rejected — decision dies here).
+    "bjr_gate_5": ["bjr_locked", "monitoring", "rejected"],
     "bjr_locked": ["archived"],
     "archived": [],
     "rejected": [],

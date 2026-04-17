@@ -3,8 +3,8 @@ Audit Committee report, Material Disclosure, Organ Approval.
 
 Each of the 6 artifact types is mounted under /api/artifacts/{type}. Every
 artifact is linkable to a StrategicDecision as evidence (decision_evidence
-polymorphic join) — but that linkage happens via the decisions router in
-Phase 6.3. Here we just store the artifacts themselves.
+polymorphic join); linkage is done via `POST /api/decisions/{id}/evidence`.
+This router just stores the artifacts themselves.
 """
 
 from __future__ import annotations
