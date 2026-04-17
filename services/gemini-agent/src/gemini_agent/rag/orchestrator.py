@@ -17,8 +17,7 @@ import os
 from datetime import date, datetime
 
 from ancol_common.config import get_settings
-
-from .graph_client import GraphClient
+from ancol_common.rag.graph_client import GraphClient
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +57,7 @@ def get_graph_client() -> GraphClient | None:
 
     if backend == "spanner":
         try:
-            from .spanner_graph import SpannerGraphClient
+            from ancol_common.rag.spanner_graph import SpannerGraphClient
 
             return SpannerGraphClient()
         except Exception:
@@ -69,7 +68,7 @@ def get_graph_client() -> GraphClient | None:
 
     if backend == "neo4j":
         try:
-            from .neo4j_graph import Neo4jGraphClient
+            from ancol_common.rag.neo4j_graph import Neo4jGraphClient
 
             return Neo4jGraphClient()
         except Exception:

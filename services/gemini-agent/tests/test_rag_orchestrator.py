@@ -6,7 +6,7 @@ import importlib.util
 from unittest.mock import patch
 
 import pytest
-from gemini_agent.rag.graph_client import (
+from ancol_common.rag.graph_client import (
     AmendmentEdge,
     ContractNode,
     GraphClient,

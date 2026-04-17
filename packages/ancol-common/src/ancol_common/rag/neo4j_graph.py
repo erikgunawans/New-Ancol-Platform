@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 
-from .graph_client import (
+from ancol_common.rag.graph_client import (
     AmendmentEdge,
     ContractNode,
     CrossReference,

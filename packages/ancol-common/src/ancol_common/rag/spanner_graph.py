@@ -11,7 +11,7 @@ import os
 
 from google.cloud import spanner
 
-from .graph_client import (
+from ancol_common.rag.graph_client import (
     AmendmentEdge,
     ContractNode,
     CrossReference,
