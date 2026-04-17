@@ -349,14 +349,20 @@ class Neo4jGraphClient(GraphClient):
     ) -> None:
         """Create Decision-[APPROVED_BY {half}]->User edge.
 
-        Keyed on (decision_id, half) so a re-approved half updates approved_at
-        in place rather than adding a duplicate edge.
+        Keyed on (decision_id, half) so a re-approved half — even by a
+        different authorized user — replaces the prior edge rather than
+        adding a duplicate. Any existing APPROVED_BY for this half is
+        removed first, then a fresh edge is created pointing at the
+        current approver.
         """
         cypher = """
         MATCH (d:Decision {id: $decision_id})
         MERGE (u:User {id: $user_id})
-        MERGE (d)-[ab:APPROVED_BY {half: $half}]->(u)
-        SET ab.approved_at = $approved_at
+        WITH d, u
+        OPTIONAL MATCH (d)-[old_ab:APPROVED_BY {half: $half}]->(:User)
+        DELETE old_ab
+        WITH d, u
+        CREATE (d)-[:APPROVED_BY {half: $half, approved_at: $approved_at}]->(u)
         """
         params = {
             "decision_id": str(decision_id),

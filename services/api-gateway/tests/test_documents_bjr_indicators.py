@@ -235,3 +235,21 @@ def test_bjr_indicators_swallows_not_implemented(monkeypatch):
     finally:
         for dep_fn in auth_deps:
             app.dependency_overrides.pop(dep_fn, None)
+
+
+def test_get_graph_client_swallows_instantiation_failure(monkeypatch):
+    """Backend client ctor failure (missing deps, bad creds) returns None, not 500."""
+    from api_gateway.routers import documents
+
+    monkeypatch.setenv("GRAPH_BACKEND", "neo4j")
+    monkeypatch.setattr(documents, "_graph_client_singleton", None)
+
+    def _raise(*args, **kwargs):
+        raise RuntimeError("neo4j driver not installed")
+
+    monkeypatch.setattr(
+        "ancol_common.rag.neo4j_graph.Neo4jGraphClient",
+        _raise,
+    )
+
+    assert documents._get_graph_client() is None

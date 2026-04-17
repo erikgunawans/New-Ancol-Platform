@@ -29,10 +29,13 @@ _graph_client_singleton: GraphClient | None = None
 
 
 def _get_graph_client() -> GraphClient | None:
-    """Return the configured GraphClient, or None if GRAPH_BACKEND=none.
+    """Return the configured GraphClient, or None if unavailable.
 
     Instantiated lazily on first call and cached for the process lifetime
-    so that Neo4j/Spanner driver connection pools are reused across requests.
+    so Neo4j/Spanner driver connection pools are reused across requests.
+    Returns None when GRAPH_BACKEND=none, or when backend client
+    instantiation fails (missing deps, bad credentials, unreachable
+    host). The caller degrades silently per the GraphClient contract.
     """
     global _graph_client_singleton
     backend = os.getenv("GRAPH_BACKEND", "spanner").lower()
@@ -40,19 +43,23 @@ def _get_graph_client() -> GraphClient | None:
         return None
     if _graph_client_singleton is not None:
         return _graph_client_singleton
-    if backend == "neo4j":
-        from ancol_common.rag.neo4j_graph import Neo4jGraphClient
+    try:
+        if backend == "neo4j":
+            from ancol_common.rag.neo4j_graph import Neo4jGraphClient
 
-        _graph_client_singleton = Neo4jGraphClient(
-            uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
-            username=os.getenv("NEO4J_USER", "neo4j"),
-            password=os.getenv("NEO4J_PASSWORD", ""),
-        )
-    else:
-        from ancol_common.rag.spanner_graph import SpannerGraphClient
+            _graph_client_singleton = Neo4jGraphClient(
+                uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+                username=os.getenv("NEO4J_USER", "neo4j"),
+                password=os.getenv("NEO4J_PASSWORD", ""),
+            )
+        else:
+            from ancol_common.rag.spanner_graph import SpannerGraphClient
 
-        # Reads GCP_PROJECT / SPANNER_INSTANCE / SPANNER_DATABASE from env
-        _graph_client_singleton = SpannerGraphClient()
+            # Reads GCP_PROJECT / SPANNER_INSTANCE / SPANNER_DATABASE from env
+            _graph_client_singleton = SpannerGraphClient()
+    except Exception:
+        logger.exception("GraphClient instantiation failed (backend=%s)", backend)
+        return None
     return _graph_client_singleton
 
 

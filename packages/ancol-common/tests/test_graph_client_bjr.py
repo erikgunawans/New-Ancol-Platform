@@ -130,7 +130,32 @@ async def test_upsert_approved_by_edge_includes_half() -> None:
     mock_session = client._driver.session.return_value
     cypher = mock_session.run.await_args_list[0].args[0]
     assert "APPROVED_BY" in cypher
-    assert "half" in cypher
+    assert "$half" in cypher
+
+
+@pytest.mark.asyncio
+async def test_upsert_approved_by_edge_keyed_by_half_not_user() -> None:
+    """A re-approval by a DIFFERENT user for the same half must replace the
+    prior edge, not create a duplicate — the contract is one edge per
+    (decision_id, half), independent of the approver's identity.
+    """
+    client = _make_client_with_mock_driver([])
+
+    await client.upsert_approved_by_edge(
+        decision_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        half=Gate5Half.KOMISARIS,
+        approved_at=datetime.now(UTC),
+    )
+
+    mock_session = client._driver.session.return_value
+    cypher = mock_session.run.await_args_list[0].args[0]
+    # Existing edges for this half must be DELETED before the new one is created.
+    assert "OPTIONAL MATCH" in cypher
+    assert "APPROVED_BY {half: $half}" in cypher
+    assert "DELETE" in cypher
+    # The new edge is created (not merged) after the cleanup.
+    assert "CREATE" in cypher
 
 
 @pytest.mark.asyncio
