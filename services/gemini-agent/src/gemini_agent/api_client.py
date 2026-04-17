@@ -332,3 +332,45 @@ class ApiClient:
         if category:
             params["category"] = category
         return await self._request("GET", "/api/drafting/clause-library", params=params)
+
+    # -- BJR decision endpoints (chat-first interface, Phase 6.4a) --
+
+    async def get_decision(self, decision_id: str) -> dict:
+        """GET /api/decisions/{id}."""
+        return await self._request("GET", f"/api/decisions/{decision_id}")
+
+    async def list_decisions(
+        self,
+        *,
+        status: str | None = None,
+        owner_email: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict:
+        """GET /api/decisions with optional filters."""
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if status:
+            params["status"] = status
+        if owner_email:
+            params["owner_email"] = owner_email
+        return await self._request("GET", "/api/decisions", params=params)
+
+    async def get_readiness(self, decision_id: str) -> dict:
+        """GET /api/decisions/{id}/readiness."""
+        return await self._request("GET", f"/api/decisions/{decision_id}/readiness")
+
+    async def get_checklist(self, decision_id: str) -> dict:
+        """GET /api/decisions/{id}/checklist."""
+        return await self._request("GET", f"/api/decisions/{decision_id}/checklist")
+
+    async def get_bjr_indicators(self, doc_id: str) -> dict:
+        """GET /api/documents/{id}/bjr-indicators."""
+        return await self._request("GET", f"/api/documents/{doc_id}/bjr-indicators")
+
+    async def get_decision_evidence(self, decision_id: str) -> dict:
+        """GET /api/decisions/{id}/evidence."""
+        return await self._request("GET", f"/api/decisions/{decision_id}/evidence")
+
+    async def get_passport_url(self, decision_id: str) -> dict:
+        """GET /api/decisions/{id}/passport/signed-url."""
+        return await self._request("GET", f"/api/decisions/{decision_id}/passport/signed-url")
