@@ -42,7 +42,9 @@ class TestContractEnums:
     def test_new_user_roles_exist(self):
         assert UserRole.CONTRACT_MANAGER == "contract_manager"
         assert UserRole.BUSINESS_DEV == "business_dev"
-        assert len(UserRole) == 7
+        assert UserRole.DEWAN_PENGAWAS == "dewan_pengawas"
+        assert UserRole.DIREKSI == "direksi"
+        assert len(UserRole) == 9
 
 
 class TestContractSchemas:

@@ -18,7 +18,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, INET, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -43,6 +43,8 @@ class User(Base):
             "legal_compliance",
             "contract_manager",
             "business_dev",
+            "dewan_pengawas",
+            "direksi",
             "admin",
             name="user_role",
         ),
@@ -457,6 +459,19 @@ class RegulationIndex(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     domain: Mapped[str] = mapped_column(String(100), nullable=False)
+    # BJR additions — drives dual-regime filtering + authority-rank sort
+    regulatory_regime: Mapped[str | None] = mapped_column(
+        Enum(
+            "corporate",
+            "regional_finance",
+            "listing",
+            "internal",
+            name="regulatory_regime",
+        ),
+    )
+    layer: Mapped[str | None] = mapped_column(
+        Enum("uu", "pp", "pergub_dki", "ojk_bei", "internal", name="regulation_layer"),
+    )
     effective_date: Mapped[date] = mapped_column(Date, nullable=False)
     expiry_date: Mapped[date | None] = mapped_column(Date)
     grace_period_end: Mapped[date | None] = mapped_column(Date)
@@ -472,6 +487,8 @@ class RegulationIndex(Base):
     __table_args__ = (
         Index("idx_regulation_effective", "effective_date", "expiry_date"),
         Index("idx_regulation_domain", "domain"),
+        Index("idx_regulation_regime", "regulatory_regime"),
+        Index("idx_regulation_layer", "layer"),
     )
 
 
@@ -750,4 +767,452 @@ class ClauseLibrary(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BJR (Business Judgment Rule) — decision-level defensibility layer
+# ══════════════════════════════════════════════════════════════════════════════
+# 12 new tables implementing the UU PT Pasal 97(5) + PP 23/2022 proof chain.
+# StrategicDecision is the root; all other tables link to it as evidence.
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+# ── RKAB / RJPP registries (created first — referenced by StrategicDecision FK) ──
+
+
+class RKABLineItem(Base):
+    """Annual business plan line item. A decision outside approved RKAB voids BJR."""
+
+    __tablename__ = "rkab_line_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    category: Mapped[str] = mapped_column(String(100), nullable=False)
+    activity_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    budget_idr: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False)
+    approval_status: Mapped[str] = mapped_column(
+        Enum(
+            "draft",
+            "direksi_approved",
+            "dewas_approved",
+            "rups_approved",
+            "superseded",
+            name="rkab_approval_status",
+        ),
+        nullable=False,
+        default="draft",
+    )
+    rups_approval_date: Mapped[date | None] = mapped_column(Date)
+    approved_by_rups_ref: Mapped[str | None] = mapped_column(String(500))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    effective_from: Mapped[date | None] = mapped_column(Date)
+    effective_until: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_rkab_year_code", "fiscal_year", "code", unique=True),
+        Index("idx_rkab_year_active", "fiscal_year", "is_active"),
+    )
+
+
+class RJPPTheme(Base):
+    """5-year long-term plan theme. Strategic decisions align to an RJPP theme."""
+
+    __tablename__ = "rjpp_themes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    period_start_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    period_end_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    theme_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    target_metrics: Mapped[dict | None] = mapped_column(JSONB)
+    approval_ref: Mapped[str | None] = mapped_column(String(500))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("idx_rjpp_period", "period_start_year", "period_end_year"),)
+
+
+# ── StrategicDecision (BJR root entity) ──
+
+
+class StrategicDecision(Base):
+    """Root BJR entity — a business initiative that aggregates evidence.
+
+    Corresponds to a 'strategic business decision' under UU PT Pasal 97(5).
+    One Decision = 1 RKAB line + 1 Feasibility Study + 1 Due Diligence +
+    N MoMs + N Contracts + post-decision monitoring reports.
+    """
+
+    __tablename__ = "strategic_decisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    initiative_type: Mapped[str] = mapped_column(
+        Enum(
+            "investment",
+            "partnership",
+            "capex",
+            "divestment",
+            "major_contract",
+            "rups_item",
+            "organizational_change",
+            name="initiative_type",
+        ),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        Enum(
+            "ideation",
+            "dd_in_progress",
+            "fs_in_progress",
+            "rkab_verified",
+            "board_proposed",
+            "organ_approval_pending",
+            "approved",
+            "executing",
+            "monitoring",
+            "bjr_gate_5",
+            "bjr_locked",
+            "archived",
+            "rejected",
+            "cancelled",
+            name="decision_status",
+        ),
+        nullable=False,
+        default="ideation",
+    )
+    rkab_line_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("rkab_line_items.id"))
+    rjpp_theme_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("rjpp_themes.id"))
+    business_owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    legal_owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    value_idr: Mapped[float | None] = mapped_column(Numeric(15, 2))
+    # Scoring
+    bjr_readiness_score: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    corporate_compliance_score: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    regional_compliance_score: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    # Gate 5 lock state
+    is_bjr_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by_komisaris_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    locked_by_legal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    gcs_passport_uri: Mapped[str | None] = mapped_column(String(1000))
+    # Retroactive vs proactive source flag
+    source: Mapped[str] = mapped_column(String(50), default="proactive", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_decisions_status", "status"),
+        Index("idx_decisions_initiative_type", "initiative_type"),
+        Index("idx_decisions_business_owner", "business_owner_id"),
+        Index("idx_decisions_rkab", "rkab_line_id"),
+        Index("idx_decisions_locked", "is_bjr_locked"),
+    )
+
+
+# ── BJR Checklist (16 items per decision) ──
+
+
+class BJRChecklistItemRecord(Base):
+    """One of 16 BJR proof items per decision. `item_code` is a stable contract."""
+
+    __tablename__ = "bjr_checklists"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("strategic_decisions.id", ondelete="CASCADE"), nullable=False
+    )
+    phase: Mapped[str] = mapped_column(
+        Enum("pre_decision", "decision", "post_decision", name="checklist_phase"),
+        nullable=False,
+    )
+    item_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(
+        Enum(
+            "not_started",
+            "in_progress",
+            "satisfied",
+            "waived",
+            "flagged",
+            name="checklist_status",
+        ),
+        nullable=False,
+        default="not_started",
+    )
+    ai_confidence: Mapped[float | None] = mapped_column(Numeric(3, 2))
+    evidence_refs: Mapped[list | None] = mapped_column(JSONB)
+    regulation_basis: Mapped[list | None] = mapped_column(ARRAY(String(100)))
+    remediation_note: Mapped[str | None] = mapped_column(Text)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_checked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_checklist_decision_item", "decision_id", "item_code", unique=True),
+        Index("idx_checklist_status", "status"),
+    )
+
+
+# ── Decision Evidence (polymorphic join) ──
+
+
+class DecisionEvidenceRecord(Base):
+    """Polymorphic link between a StrategicDecision and its evidence artifacts."""
+
+    __tablename__ = "decision_evidence"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("strategic_decisions.id", ondelete="CASCADE"), nullable=False
+    )
+    evidence_type: Mapped[str] = mapped_column(
+        Enum(
+            "mom",
+            "contract",
+            "dd_report",
+            "fs_report",
+            "spi_report",
+            "audit_committee_report",
+            "ojk_disclosure",
+            "organ_approval",
+            "rkab_line",
+            "rjpp_theme",
+            name="evidence_type",
+        ),
+        nullable=False,
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    relationship_type: Mapped[str] = mapped_column(
+        Enum(
+            "authorizes",
+            "documents",
+            "supports",
+            "monitors",
+            "discloses",
+            name="evidence_relationship",
+        ),
+        nullable=False,
+        default="documents",
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_evidence_decision", "decision_id"),
+        Index("idx_evidence_polymorphic", "evidence_type", "evidence_id"),
+        Index(
+            "idx_evidence_unique_link",
+            "decision_id",
+            "evidence_type",
+            "evidence_id",
+            "relationship_type",
+            unique=True,
+        ),
+    )
+
+
+# ── Gate 5 dual-approval (separate from hitl_decisions — decision-scoped) ──
+
+
+class BJRGate5Decision(Base):
+    """Gate 5 = final BJR sign-off. Requires dual approval: Komisaris + Legal.
+
+    Distinct from HitlDecisionRecord because Gate 5 is decision-scoped, not
+    document-scoped, and uses dual-approver columns rather than two rows.
+    """
+
+    __tablename__ = "bjr_gate5_decisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("strategic_decisions.id"), nullable=False
+    )
+    # Komisaris half
+    approver_komisaris_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    komisaris_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    komisaris_decision: Mapped[str | None] = mapped_column(String(20))  # approved | rejected
+    komisaris_notes: Mapped[str | None] = mapped_column(Text)
+    # Legal half
+    approver_legal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    legal_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    legal_decision: Mapped[str | None] = mapped_column(String(20))  # approved | rejected
+    legal_notes: Mapped[str | None] = mapped_column(Text)
+    # Final state
+    final_decision: Mapped[str] = mapped_column(
+        Enum("pending", "approved", "rejected", name="gate5_final_decision"),
+        nullable=False,
+        default="pending",
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sla_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_sla_breached: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_gate5_decision", "decision_id"),
+        Index("idx_gate5_final", "final_decision"),
+    )
+
+
+# ── BJR Artifacts: Due Diligence, Feasibility Study, SPI, Audit Committee,
+#    Material Disclosure, Organ Approval ──
+
+
+class DueDiligenceReport(Base):
+    """Due Diligence report — BJR pre-decision evidence (PD-01-DD)."""
+
+    __tablename__ = "due_diligence_reports"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("strategic_decisions.id", ondelete="CASCADE"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    findings: Mapped[dict | None] = mapped_column(JSONB)
+    risk_rating: Mapped[str] = mapped_column(
+        Enum("low", "medium", "high", "critical", name="dd_risk_rating"),
+        nullable=False,
+    )
+    gcs_uri: Mapped[str | None] = mapped_column(String(1000))
+    prepared_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reviewed_by_legal: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    review_date: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("idx_dd_decision", "decision_id"),)
+
+
+class FeasibilityStudyReport(Base):
+    """Feasibility Study — BJR pre-decision evidence (PD-02-FS)."""
+
+    __tablename__ = "feasibility_study_reports"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("strategic_decisions.id", ondelete="CASCADE"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    financial_projections: Mapped[dict | None] = mapped_column(JSONB)
+    rjpp_alignment_theme_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("rjpp_themes.id"))
+    assumptions: Mapped[dict | None] = mapped_column(JSONB)
+    gcs_uri: Mapped[str | None] = mapped_column(String(1000))
+    prepared_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reviewed_by_finance: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    review_date: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("idx_fs_decision", "decision_id"),)
+
+
+class SPIReport(Base):
+    """Sistem Pengendalian Internal (Internal Control) report — POST-13-SPI evidence."""
+
+    __tablename__ = "spi_reports"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    report_type: Mapped[str] = mapped_column(
+        Enum("routine", "incident", "special_audit", "follow_up", name="spi_report_type"),
+        nullable=False,
+    )
+    findings: Mapped[dict | None] = mapped_column(JSONB)
+    related_decision_ids: Mapped[list | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
+    gcs_uri: Mapped[str | None] = mapped_column(String(1000))
+    submitted_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    sent_to_direksi_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_to_audit_committee_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_to_dewas_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_spi_period", "period_start", "period_end"),
+        Index("idx_spi_related_decisions", "related_decision_ids", postgresql_using="gin"),
+    )
+
+
+class AuditCommitteeReport(Base):
+    """Komite Audit meeting report — POST-14-AUDITCOM evidence."""
+
+    __tablename__ = "audit_committee_reports"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_date: Mapped[date] = mapped_column(Date, nullable=False)
+    agenda_items: Mapped[list | None] = mapped_column(JSONB)
+    decisions_reviewed: Mapped[list | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
+    findings: Mapped[str | None] = mapped_column(Text)
+    recommendations: Mapped[str | None] = mapped_column(Text)
+    gcs_uri: Mapped[str | None] = mapped_column(String(1000))
+    secretary_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_auditcom_meeting_date", "meeting_date"),
+        Index("idx_auditcom_decisions", "decisions_reviewed", postgresql_using="gin"),
+    )
+
+
+class MaterialDisclosure(Base):
+    """OJK/BEI material disclosure log — D-11-DISCLOSE evidence."""
+
+    __tablename__ = "material_disclosures"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    disclosure_type: Mapped[str] = mapped_column(String(200), nullable=False)
+    decision_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("strategic_decisions.id"))
+    ojk_filing_ref: Mapped[str | None] = mapped_column(String(200))
+    idx_filing_ref: Mapped[str | None] = mapped_column(String(200))
+    submission_date: Mapped[date] = mapped_column(Date, nullable=False)
+    deadline_date: Mapped[date] = mapped_column(Date, nullable=False)
+    is_on_time: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    gcs_uri: Mapped[str | None] = mapped_column(String(1000))
+    filed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_disclosure_decision", "decision_id"),
+        Index("idx_disclosure_ontime", "is_on_time"),
+    )
+
+
+class OrganApproval(Base):
+    """Komisaris / Dewan Pengawas / RUPS approval record — D-10-ORGAN evidence."""
+
+    __tablename__ = "organ_approvals"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    approval_type: Mapped[str] = mapped_column(
+        Enum("komisaris", "dewas", "rups", name="organ_approval_type"),
+        nullable=False,
+    )
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("strategic_decisions.id"), nullable=False
+    )
+    approver_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    approval_date: Mapped[date] = mapped_column(Date, nullable=False)
+    conditions_text: Mapped[str | None] = mapped_column(Text)
+    meeting_reference: Mapped[str | None] = mapped_column(String(500))
+    gcs_uri: Mapped[str | None] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_organ_approval_decision", "decision_id"),
+        Index("idx_organ_approval_type", "approval_type"),
     )

@@ -20,10 +20,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import (
     analytics,
+    artifacts,
     audit,
     batch,
     contracts,
     dashboard,
+    decisions,
     documents,
     drafting,
     hitl,
@@ -31,6 +33,8 @@ from .routers import (
     obligations,
     reports,
     retroactive,
+    rjpp,
+    rkab,
     templates,
     users,
 )
@@ -80,6 +84,13 @@ app.include_router(contracts.router, prefix="/api")
 app.include_router(obligations.router, prefix="/api")
 app.include_router(drafting.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+# BJR registries and artifact routers (Phase 6.2)
+app.include_router(rkab.router, prefix="/api")
+app.include_router(rjpp.router, prefix="/api")
+app.include_router(artifacts.router, prefix="/api")
+# BJR decisions + Gate 5 (Phase 6.3). gate5_router is nested with MFA dependency.
+app.include_router(decisions.router, prefix="/api")
+app.include_router(decisions.gate5_router, prefix="/api")
 
 
 @app.get("/health")
@@ -107,5 +118,9 @@ async def api_root():
             "obligations": "/api/obligations",
             "drafting": "/api/drafting",
             "notifications": "/api/notifications",
+            "rkab": "/api/rkab",
+            "rjpp": "/api/rjpp",
+            "artifacts": "/api/artifacts",
+            "decisions": "/api/decisions",
         },
     }

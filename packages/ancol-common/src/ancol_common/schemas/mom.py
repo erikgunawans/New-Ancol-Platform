@@ -78,6 +78,8 @@ class UserRole(StrEnum):
     LEGAL_COMPLIANCE = "legal_compliance"
     CONTRACT_MANAGER = "contract_manager"
     BUSINESS_DEV = "business_dev"
+    DEWAN_PENGAWAS = "dewan_pengawas"  # BUMD oversight per Pergub 50/2018 (distinct from Komisaris)
+    DIREKSI = "direksi"  # Board member — self-service decision passport
     ADMIN = "admin"
 
 
