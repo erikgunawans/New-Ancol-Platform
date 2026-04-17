@@ -267,9 +267,7 @@ async def get_document_bjr_indicators(
     if graph is None:
         return BJRIndicatorsListResponse(indicators=[])
 
-    # doc_type is unused by the current graph query (matches on id alone) but
-    # preserved in the signature for future type-aware routing.
-    indicators = await graph.get_document_indicators(document_id, doc_type="")
+    indicators = await graph.get_document_indicators(document_id)
 
     return BJRIndicatorsListResponse(
         indicators=[_serialize_indicator(ind) for ind in indicators],

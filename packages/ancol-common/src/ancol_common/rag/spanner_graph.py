@@ -250,10 +250,10 @@ class SpannerGraphClient(GraphClient):
             for row in rows
         ]
 
-    # ── BJR stubs — real implementations land in Phase 6.4a Task 5 ──
+    # ── BJR stubs — Spanner backend not implemented yet ──
 
     async def upsert_decision_node(self, decision: DecisionNode) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 5")
+        raise NotImplementedError("Spanner BJR backend not implemented")
 
     async def upsert_supported_by_edge(
         self,
@@ -262,7 +262,7 @@ class SpannerGraphClient(GraphClient):
         linked_at: datetime,
         linked_by: uuid.UUID,
     ) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 5")
+        raise NotImplementedError("Spanner BJR backend not implemented")
 
     async def upsert_satisfies_item_edge(
         self,
@@ -271,7 +271,7 @@ class SpannerGraphClient(GraphClient):
         decision_id: uuid.UUID,
         evaluator_status: str,
     ) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 5")
+        raise NotImplementedError("Spanner BJR backend not implemented")
 
     async def upsert_approved_by_edge(
         self,
@@ -280,17 +280,16 @@ class SpannerGraphClient(GraphClient):
         half: Gate5Half,
         approved_at: datetime,
     ) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 5")
+        raise NotImplementedError("Spanner BJR backend not implemented")
 
     async def get_document_indicators(
         self,
         doc_id: uuid.UUID,
-        doc_type: str,
     ) -> list[DocumentIndicator]:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 5")
+        raise NotImplementedError("Spanner BJR backend not implemented")
 
     async def get_decision_evidence(
         self,
         decision_id: uuid.UUID,
     ) -> list[EvidenceSummary]:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 5")
+        raise NotImplementedError("Spanner BJR backend not implemented")

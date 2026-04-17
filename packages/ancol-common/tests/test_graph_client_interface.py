@@ -26,7 +26,7 @@ def test_graph_client_method_signatures() -> None:
     """Signatures must match the spec § 4.6 so implementations align."""
     sig_get_indicators = inspect.signature(GraphClient.get_document_indicators)
     params = list(sig_get_indicators.parameters.keys())
-    assert params == ["self", "doc_id", "doc_type"], params
+    assert params == ["self", "doc_id"], params
 
     sig_get_evidence = inspect.signature(GraphClient.get_decision_evidence)
     params = list(sig_get_evidence.parameters.keys())

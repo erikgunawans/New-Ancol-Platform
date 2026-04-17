@@ -144,7 +144,7 @@ async def test_get_document_indicators_parses_records() -> None:
     ]
     client = _make_client_with_mock_driver(records)
 
-    results = await client.get_document_indicators(doc_id=uuid.uuid4(), doc_type="mom")
+    results = await client.get_document_indicators(doc_id=uuid.uuid4())
 
     assert len(results) == 1
     assert isinstance(results[0], DocumentIndicator)
@@ -173,7 +173,7 @@ async def test_get_document_indicators_handles_locked_decision() -> None:
     ]
     client = _make_client_with_mock_driver(records)
 
-    results = await client.get_document_indicators(doc_id=uuid.uuid4(), doc_type="mom")
+    results = await client.get_document_indicators(doc_id=uuid.uuid4())
 
     assert len(results) == 1
     assert results[0].is_locked is True
@@ -218,5 +218,5 @@ async def test_get_document_indicators_returns_empty_on_connection_error() -> No
     client._driver = MagicMock()
     client._driver.session = MagicMock(return_value=failing_session)
 
-    results = await client.get_document_indicators(doc_id=uuid.uuid4(), doc_type="mom")
+    results = await client.get_document_indicators(doc_id=uuid.uuid4())
     assert results == []

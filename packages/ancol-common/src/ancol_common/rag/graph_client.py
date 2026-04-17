@@ -111,7 +111,7 @@ class GraphClient(ABC):
     async def get_related_contracts(self, contract_id: str) -> list[ContractNode]:
         """Return contracts in the amendment/renewal chain."""
 
-    # ── BJR extensions (added in Phase 6.4a) ──
+    # ── BJR extensions ──
     # These back the decision-level defensibility features: per-document
     # indicators, decision evidence browsing, and Gate 5 approval audit.
 
@@ -171,7 +171,6 @@ class GraphClient(ABC):
     async def get_document_indicators(
         self,
         doc_id: uuid.UUID,
-        doc_type: str,
     ) -> list[DocumentIndicator]:
         """Return all BJR decisions this document supports, with per-decision status.
 

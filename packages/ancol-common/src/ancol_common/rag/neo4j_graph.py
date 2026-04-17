@@ -244,7 +244,7 @@ class Neo4jGraphClient(GraphClient):
         await self._driver.close()
         logger.info("Neo4jGraphClient closed")
 
-    # ── BJR implementations (Phase 6.4a) ──
+    # ── BJR implementations ──
 
     async def upsert_decision_node(self, decision: DecisionNode) -> None:
         """Create or update a Decision vertex. Idempotent via MERGE on id."""
@@ -286,7 +286,8 @@ class Neo4jGraphClient(GraphClient):
         """Create/update Decision-[SUPPORTED_BY]->Evidence edge. Upserts Evidence vertex."""
         cypher = """
         MATCH (d:Decision {id: $decision_id})
-        MERGE (ev:Evidence {id: $evidence_id, type: $evidence_type})
+        MERGE (ev:Evidence {id: $evidence_id})
+        SET ev.type = $evidence_type
         MERGE (d)-[sb:SUPPORTED_BY]->(ev)
         SET sb.linked_at = $linked_at,
             sb.linked_by = $linked_by
@@ -372,7 +373,6 @@ class Neo4jGraphClient(GraphClient):
     async def get_document_indicators(
         self,
         doc_id: uuid.UUID,
-        doc_type: str,
     ) -> list[DocumentIndicator]:
         """Return all decisions this doc supports + per-decision checklist coverage."""
         cypher = """
@@ -390,7 +390,7 @@ class Neo4jGraphClient(GraphClient):
                 result = await session.run(cypher, {"doc_id": str(doc_id)})
                 records = await result.data()
         except Exception:
-            logger.exception("get_document_indicators failed for %s/%s", doc_id, doc_type)
+            logger.exception("get_document_indicators failed for %s", doc_id)
             return []
 
         out: list[DocumentIndicator] = []
