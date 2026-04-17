@@ -90,6 +90,27 @@ class MockGraphClient(GraphClient):
             ]
         return []
 
+    # BJR no-op stubs so the ABC stays instantiable; legacy tests don't exercise these.
+    async def upsert_decision_node(self, decision) -> None:
+        return None
+
+    async def upsert_supported_by_edge(self, decision_id, evidence, linked_at, linked_by) -> None:
+        return None
+
+    async def upsert_satisfies_item_edge(
+        self, evidence_id, item_code, decision_id, evaluator_status
+    ) -> None:
+        return None
+
+    async def upsert_approved_by_edge(self, decision_id, user_id, half, approved_at) -> None:
+        return None
+
+    async def get_document_indicators(self, doc_id, doc_type) -> list:
+        return []
+
+    async def get_decision_evidence(self, decision_id) -> list:
+        return []
+
 
 def test_get_graph_client_disabled():
     """When GRAPH_BACKEND is disabled, returns None."""
