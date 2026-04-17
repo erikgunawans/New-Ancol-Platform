@@ -162,3 +162,65 @@ def format_checklist_summary(checklist: dict) -> str:
             marker = "  🚨 CRITICAL" if code in CRITICAL_ITEMS and status == "flagged" else ""
             lines.append(f"  {emoji} `{code}` ({status}){marker}")
     return "\n".join(lines)
+
+
+def format_document_indicators(indicators: list[dict]) -> str:
+    """Render per-document BJR indicators as a chat card.
+
+    Returns empty string if the list is empty — chat response stays silent
+    when a document has no BJR context (spec § 5.2).
+    """
+    if not indicators:
+        return ""
+
+    lines = [f"\nSupports {len(indicators)} strategic decision(s):"]
+    for ind in indicators[:5]:
+        is_locked = ind.get("is_locked", False)
+        readiness = ind.get("readiness_score")
+        emoji = _state_emoji(ind.get("status", ""), is_locked, readiness)
+        title = ind.get("decision_title", "(untitled)")
+
+        if is_locked:
+            locked_at = ind.get("locked_at") or ""
+            r_disp = f"{readiness:.0f}/100" if readiness is not None else "—"
+            lines.append(f"\n  {emoji} **{title}**")
+            lines.append(f"     readiness {r_disp} • LOCKED {locked_at[:10]}")
+        else:
+            r_str = f"{readiness:.0f}/100" if readiness is not None else "—"
+            lines.append(f"\n  {emoji} **{title}**")
+            lines.append(f"     readiness {r_str} • status `{ind.get('status', '?')}`")
+
+        sat = ind.get("satisfied_items", [])
+        missing = ind.get("missing_items", [])
+        if sat:
+            sat_str = " ".join(f"`{c}` ✓" for c in sat[:4])
+            extra = f" (+{len(sat) - 4} more)" if len(sat) > 4 else ""
+            lines.append(f"     Satisfies: {sat_str}{extra}")
+        if missing:
+            miss_str = " ".join(f"`{c}` ⚠" for c in missing[:4])
+            extra = f" (+{len(missing) - 4} more)" if len(missing) > 4 else ""
+            lines.append(f"     Missing:   {miss_str}{extra}")
+
+    if len(indicators) > 5:
+        lines.append(f"\n_(+{len(indicators) - 5} more decision(s) — ask for details)_")
+    return "\n".join(lines)
+
+
+def format_decision_evidence(payload: dict) -> str:
+    """Render decision -> evidence list grouped by evidence type."""
+    items: list[dict] = payload.get("evidence", [])
+    if not items:
+        return "Belum ada evidence terhubung ke decision ini."
+
+    by_type: dict[str, list[dict]] = {}
+    for ev in items:
+        by_type.setdefault(ev.get("evidence_type", "other"), []).append(ev)
+
+    lines = ["**Evidence untuk decision ini:**"]
+    for ev_type, evs in by_type.items():
+        lines.append(f"\n**{ev_type}** ({len(evs)}):")
+        for ev in evs:
+            sat = ev.get("satisfies_items", [])
+            sat_str = " ".join(f"`{c}`" for c in sat) if sat else "_(belum dipetakan ke item)_"
+            lines.append(f"  - **{ev.get('title', '—')}** — {sat_str}")
+    return "\n".join(lines)
