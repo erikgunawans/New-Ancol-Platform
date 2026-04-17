@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, date, datetime
 
@@ -12,10 +13,43 @@ from ancol_common.db.connection import get_session
 from ancol_common.db.models import Document
 from ancol_common.db.repository import get_document_by_id
 from ancol_common.pubsub.publisher import publish_message
+from ancol_common.rag.graph_client import GraphClient
+from ancol_common.rag.models import DocumentIndicator
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/documents", tags=["Documents"], dependencies=[require_mfa_verified()])
+
+
+_graph_client_singleton: GraphClient | None = None
+
+
+def _get_graph_client() -> GraphClient | None:
+    """Return the configured GraphClient, or None if GRAPH_BACKEND=none.
+
+    Instantiated lazily on first call and cached for the process lifetime
+    so that Neo4j/Spanner driver connection pools are reused across requests.
+    """
+    global _graph_client_singleton
+    backend = os.getenv("GRAPH_BACKEND", "spanner").lower()
+    if backend == "none":
+        return None
+    if _graph_client_singleton is not None:
+        return _graph_client_singleton
+    if backend == "neo4j":
+        from ancol_common.rag.neo4j_graph import Neo4jGraphClient
+
+        _graph_client_singleton = Neo4jGraphClient(
+            uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+            username=os.getenv("NEO4J_USER", "neo4j"),
+            password=os.getenv("NEO4J_PASSWORD", ""),
+        )
+    else:
+        from ancol_common.rag.spanner_graph import SpannerGraphClient
+
+        # Reads GCP_PROJECT / SPANNER_INSTANCE / SPANNER_DATABASE from env
+        _graph_client_singleton = SpannerGraphClient()
+    return _graph_client_singleton
 
 
 class DocumentResponse(BaseModel):
@@ -176,3 +210,67 @@ async def get_document(document_id: str, _auth=require_permission("documents:lis
             created_at=doc.created_at,
             updated_at=doc.updated_at,
         )
+
+
+class BJRIndicatorResponse(BaseModel):
+    """Per-decision BJR status for a single document."""
+
+    decision_id: uuid.UUID
+    decision_title: str
+    status: str
+    readiness_score: float | None
+    is_locked: bool
+    locked_at: datetime | None
+    satisfied_items: list[str]
+    missing_items: list[str]
+    origin: str
+
+
+class BJRIndicatorsListResponse(BaseModel):
+    indicators: list[BJRIndicatorResponse]
+
+
+def _serialize_indicator(ind: DocumentIndicator) -> BJRIndicatorResponse:
+    return BJRIndicatorResponse(
+        decision_id=ind.decision_id,
+        decision_title=ind.decision_title,
+        status=ind.status,
+        readiness_score=ind.readiness_score,
+        is_locked=ind.is_locked,
+        locked_at=ind.locked_at,
+        satisfied_items=[c.value for c in ind.satisfied_items],
+        missing_items=[c.value for c in ind.missing_items],
+        origin=ind.origin,
+    )
+
+
+@router.get(
+    "/{document_id}/bjr-indicators",
+    response_model=BJRIndicatorsListResponse,
+    summary="BJR decision indicators for a document",
+)
+async def get_document_bjr_indicators(
+    document_id: uuid.UUID,
+    _auth=require_permission("bjr:read"),
+) -> BJRIndicatorsListResponse:
+    """Return the set of BJR decisions this document supports.
+
+    Each indicator carries current readiness state + satisfied/missing
+    checklist items. Backs the Gemini Enterprise chat tool
+    `show_document_indicators`, which proactively enriches document mentions
+    with BJR context.
+
+    Degradation: when GRAPH_BACKEND=none, returns an empty list. The chat
+    tool treats "no BJR context available" as a silent no-op.
+    """
+    graph = _get_graph_client()
+    if graph is None:
+        return BJRIndicatorsListResponse(indicators=[])
+
+    # doc_type is unused by the current graph query (matches on id alone) but
+    # preserved in the signature for future type-aware routing.
+    indicators = await graph.get_document_indicators(document_id, doc_type="")
+
+    return BJRIndicatorsListResponse(
+        indicators=[_serialize_indicator(ind) for ind in indicators],
+    )
