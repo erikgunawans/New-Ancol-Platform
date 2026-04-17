@@ -244,10 +244,37 @@ class Neo4jGraphClient(GraphClient):
         await self._driver.close()
         logger.info("Neo4jGraphClient closed")
 
-    # ── BJR stubs — real implementations land in Phase 6.4a Task 4 ──
+    # ── BJR implementations (Phase 6.4a) ──
 
     async def upsert_decision_node(self, decision: DecisionNode) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 4")
+        """Create or update a Decision vertex. Idempotent via MERGE on id."""
+        cypher = """
+        MERGE (d:Decision {id: $id})
+        SET d.title = $title,
+            d.status = $status,
+            d.readiness_score = $readiness_score,
+            d.corporate_score = $corporate_score,
+            d.regional_score = $regional_score,
+            d.locked_at = $locked_at,
+            d.initiative_type = $initiative_type,
+            d.origin = $origin
+        """
+        params = {
+            "id": str(decision.id),
+            "title": decision.title,
+            "status": decision.status,
+            "readiness_score": decision.readiness_score,
+            "corporate_score": decision.corporate_score,
+            "regional_score": decision.regional_score,
+            "locked_at": decision.locked_at.isoformat() if decision.locked_at else None,
+            "initiative_type": decision.initiative_type,
+            "origin": decision.origin,
+        }
+        try:
+            async with self._driver.session() as session:
+                await session.run(cypher, params)
+        except Exception:
+            logger.exception("upsert_decision_node failed for %s", decision.id)
 
     async def upsert_supported_by_edge(
         self,
@@ -256,7 +283,26 @@ class Neo4jGraphClient(GraphClient):
         linked_at: datetime,
         linked_by: uuid.UUID,
     ) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 4")
+        """Create/update Decision-[SUPPORTED_BY]->Evidence edge. Upserts Evidence vertex."""
+        cypher = """
+        MATCH (d:Decision {id: $decision_id})
+        MERGE (ev:Evidence {id: $evidence_id, type: $evidence_type})
+        MERGE (d)-[sb:SUPPORTED_BY]->(ev)
+        SET sb.linked_at = $linked_at,
+            sb.linked_by = $linked_by
+        """
+        params = {
+            "decision_id": str(decision_id),
+            "evidence_id": str(evidence.id),
+            "evidence_type": evidence.type,
+            "linked_at": linked_at.isoformat(),
+            "linked_by": str(linked_by),
+        }
+        try:
+            async with self._driver.session() as session:
+                await session.run(cypher, params)
+        except Exception:
+            logger.exception("upsert_supported_by_edge failed %s->%s", decision_id, evidence.id)
 
     async def upsert_satisfies_item_edge(
         self,
@@ -265,7 +311,33 @@ class Neo4jGraphClient(GraphClient):
         decision_id: uuid.UUID,
         evaluator_status: str,
     ) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 4")
+        """Create/update Evidence-[SATISFIES_ITEM {decision_id}]->ChecklistItem.
+
+        The edge's decision_id property disambiguates per-decision semantics
+        so one evidence can satisfy the same item for multiple decisions.
+        """
+        cypher = """
+        MATCH (ev:Evidence {id: $evidence_id})
+        MERGE (item:ChecklistItem {code: $item_code})
+        MERGE (ev)-[si:SATISFIES_ITEM {decision_id: $decision_id}]->(item)
+        SET si.evaluator_status = $evaluator_status
+        """
+        params = {
+            "evidence_id": str(evidence_id),
+            "item_code": item_code.value,
+            "decision_id": str(decision_id),
+            "evaluator_status": evaluator_status,
+        }
+        try:
+            async with self._driver.session() as session:
+                await session.run(cypher, params)
+        except Exception:
+            logger.exception(
+                "upsert_satisfies_item_edge failed %s->%s for decision %s",
+                evidence_id,
+                item_code.value,
+                decision_id,
+            )
 
     async def upsert_approved_by_edge(
         self,
@@ -274,17 +346,102 @@ class Neo4jGraphClient(GraphClient):
         half: Gate5Half,
         approved_at: datetime,
     ) -> None:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 4")
+        """Create Decision-[APPROVED_BY {half}]->User edge.
+
+        Keyed on (decision_id, half) so a re-approved half updates approved_at
+        in place rather than adding a duplicate edge.
+        """
+        cypher = """
+        MATCH (d:Decision {id: $decision_id})
+        MERGE (u:User {id: $user_id})
+        MERGE (d)-[ab:APPROVED_BY {half: $half}]->(u)
+        SET ab.approved_at = $approved_at
+        """
+        params = {
+            "decision_id": str(decision_id),
+            "user_id": str(user_id),
+            "half": half.value,
+            "approved_at": approved_at.isoformat(),
+        }
+        try:
+            async with self._driver.session() as session:
+                await session.run(cypher, params)
+        except Exception:
+            logger.exception("upsert_approved_by_edge failed %s/%s", decision_id, half)
 
     async def get_document_indicators(
         self,
         doc_id: uuid.UUID,
         doc_type: str,
     ) -> list[DocumentIndicator]:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 4")
+        """Return all decisions this doc supports + per-decision checklist coverage."""
+        cypher = """
+        MATCH (ev:Evidence {id: $doc_id})
+        MATCH (ev)<-[:SUPPORTED_BY]-(d:Decision)
+        OPTIONAL MATCH (ev)-[si:SATISFIES_ITEM {decision_id: d.id}]->(item:ChecklistItem)
+        WITH d, collect(DISTINCT item.code) AS satisfied_items
+        RETURN d.id AS d_id, d.title AS d_title, d.status AS d_status,
+               d.readiness_score AS d_readiness_score,
+               d.locked_at AS d_locked_at, d.origin AS d_origin,
+               satisfied_items
+        """
+        try:
+            async with self._driver.session() as session:
+                result = await session.run(cypher, {"doc_id": str(doc_id)})
+                records = await result.data()
+        except Exception:
+            logger.exception("get_document_indicators failed for %s/%s", doc_id, doc_type)
+            return []
+
+        out: list[DocumentIndicator] = []
+        all_items = set(BJRItemCode)
+        for rec in records:
+            satisfied = [BJRItemCode(c) for c in (rec["satisfied_items"] or []) if c]
+            missing = sorted(all_items - set(satisfied), key=lambda c: c.value)
+            locked_at_raw = rec.get("d_locked_at")
+            locked_at = datetime.fromisoformat(locked_at_raw) if locked_at_raw else None
+            out.append(
+                DocumentIndicator(
+                    decision_id=uuid.UUID(rec["d_id"]),
+                    decision_title=rec["d_title"],
+                    status=rec["d_status"],
+                    readiness_score=rec.get("d_readiness_score"),
+                    is_locked=locked_at is not None,
+                    locked_at=locked_at,
+                    satisfied_items=satisfied,
+                    missing_items=missing,
+                    origin=rec.get("d_origin", "proactive"),
+                )
+            )
+        return out
 
     async def get_decision_evidence(
         self,
         decision_id: uuid.UUID,
     ) -> list[EvidenceSummary]:
-        raise NotImplementedError("Implemented in Phase 6.4a Task 4")
+        """Return all evidence for a decision + which items each satisfies."""
+        cypher = """
+        MATCH (d:Decision {id: $decision_id})-[:SUPPORTED_BY]->(ev:Evidence)
+        OPTIONAL MATCH (ev)-[si:SATISFIES_ITEM {decision_id: $decision_id}]->(item:ChecklistItem)
+        WITH ev, collect(DISTINCT item.code) AS satisfies_items
+        RETURN ev.id AS ev_id, ev.type AS ev_type,
+               coalesce(ev.title, '') AS ev_title,
+               satisfies_items
+        """
+        try:
+            async with self._driver.session() as session:
+                result = await session.run(cypher, {"decision_id": str(decision_id)})
+                records = await result.data()
+        except Exception:
+            logger.exception("get_decision_evidence failed for decision %s", decision_id)
+            return []
+
+        return [
+            EvidenceSummary(
+                evidence_id=uuid.UUID(rec["ev_id"]),
+                evidence_type=rec["ev_type"],
+                title=rec["ev_title"] or f"{rec['ev_type']}:{rec['ev_id'][:8]}",
+                satisfies_items=[BJRItemCode(c) for c in (rec["satisfies_items"] or []) if c],
+            )
+            for rec in records
+        ]
