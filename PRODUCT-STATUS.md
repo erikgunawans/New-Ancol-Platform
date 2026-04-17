@@ -1,7 +1,7 @@
 # PRODUCT-STATUS.md — Ancol MoM Compliance System
 
 > Live document tracking the evolution from initial PRD to current product state.
-> Last updated: 2026-04-16
+> Last updated: 2026-04-17 evening (v0.4.0.0 shipped; Phase 6.4a started — chat-first BJR pivot)
 
 ---
 
@@ -291,6 +291,22 @@ Background: Email Ingest (Gmail, every 15min), Regulation Monitor (OJK/IDX, dail
 |------|-------|------|
 | 2026-04-08 | Agentic MoM Compliance System (original PRD) | `docs/superpowers/specs/2026-04-08-agentic-mom-compliance-design.md` |
 | 2026-04-12 | Gemini Enterprise Agent Builder Integration | `docs/superpowers/specs/2026-04-12-gemini-agent-builder-integration-design.md` |
+
+### v0.4.1-dev — Phase 6.4 direction chosen: chat-first with step-up (in progress)
+
+**Date:** 2026-04-17 evening
+
+**What was decided:**
+
+Pivoted Phase 6.4 from "web-UI-first BJR dashboard" to "Gemini Enterprise chat as primary BJR surface, with minimal web step-up for MFA-gated actions."
+
+- **Scope shift:** Original Phase 6.4 = build full Next.js BJR dashboard + wizard + retroactive bundler UI on web. New scope = BJR tool handlers in `services/gemini-agent/`, new `/api/documents/{id}/bjr-indicators` endpoint, minimal 3-screen step-up web for Gate 5 dual-approval + material disclosure + MFA enrollment only.
+- **Why:** Matches existing architectural principle (#6 below) that Gemini Enterprise is the primary interface for MoM + CLM. Preserves MFA-bound-to-IAP invariant without extending it to Workspace identity. Matches Indonesian banking pattern (Klik BCA, BRImo) — defensible to OJK/BPK auditors.
+- **New phase structure:** 6.4a (chat read-only + graph, 2wk) → 6.4b (chat mutations, 2wk) → 6.4c (step-up web, 1-2wk) → 6.5 (integration + historical migration, 2wk) → 6.6 (extract `services/bjr-agent/` + ship, 1-2wk). Total 8-10 weeks.
+- **Status:** Design spec + Phase 6.4a plan committed to `feat/bjr-gemini-primary-phase-6-4a`. Task 1 of 14 (rag/ package relocation to `packages/ancol-common/`) shipped. 13 tasks remain.
+
+**Design spec:** `docs/superpowers/specs/2026-04-17-bjr-gemini-enterprise-primary-design.md`
+**Implementation plan:** `docs/superpowers/plans/2026-04-17-bjr-gemini-primary-phase-6-4a.md`
 
 ---
 
