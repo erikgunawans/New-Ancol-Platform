@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ancol_common.bjr.matching import rank_by_token_overlap
 from ancol_common.db.models import Document, Extraction, RJPPTheme, RKABLineItem
 from ancol_common.schemas.decision import InitiativeType
 
@@ -144,26 +145,22 @@ async def _rank_rkab_candidates(
         )
     )
     items = list(result.scalars().all())
-    query_tokens = set(f"{title} {description}".lower().split())
-    candidates: list[ProposedCandidate] = []
-    for item in items:
-        hay = f"{item.activity_name} {item.category} {item.description or ''}".lower()
-        hay_tokens = set(hay.split())
-        overlap = len(query_tokens & hay_tokens)
-        denom = max(len(query_tokens), 1)
-        confidence = min(overlap / denom, 1.0)
-        if confidence > 0:
-            candidates.append(
-                ProposedCandidate(
-                    id=str(item.id),
-                    code=item.code,
-                    name=item.activity_name,
-                    confidence=round(confidence, 2),
-                    rationale=f"Token overlap {overlap}/{denom}",
-                )
-            )
-    candidates.sort(key=lambda c: c.confidence, reverse=True)
-    return candidates[:top_n]
+    matches = rank_by_token_overlap(
+        query=f"{title} {description}",
+        items=items,
+        haystack_of=lambda r: f"{r.activity_name} {r.category} {r.description or ''}",
+        top_n=top_n,
+    )
+    return [
+        ProposedCandidate(
+            id=str(m.item.id),
+            code=m.item.code,
+            name=m.item.activity_name,
+            confidence=m.confidence,
+            rationale=m.rationale,
+        )
+        for m in matches
+    ]
 
 
 async def _rank_rjpp_candidates(
@@ -175,23 +172,19 @@ async def _rank_rjpp_candidates(
     """Token-overlap match against active RJPP themes."""
     result = await session.execute(select(RJPPTheme).where(RJPPTheme.is_active.is_(True)))
     themes = list(result.scalars().all())
-    query_tokens = set(f"{title} {description}".lower().split())
-    candidates: list[ProposedCandidate] = []
-    for theme in themes:
-        hay = f"{theme.theme_name} {theme.description or ''}".lower()
-        hay_tokens = set(hay.split())
-        overlap = len(query_tokens & hay_tokens)
-        denom = max(len(query_tokens), 1)
-        confidence = min(overlap / denom, 1.0)
-        if confidence > 0:
-            candidates.append(
-                ProposedCandidate(
-                    id=str(theme.id),
-                    code=theme.approval_ref or "",
-                    name=theme.theme_name,
-                    confidence=round(confidence, 2),
-                    rationale=f"Token overlap {overlap}/{denom}",
-                )
-            )
-    candidates.sort(key=lambda c: c.confidence, reverse=True)
-    return candidates[:top_n]
+    matches = rank_by_token_overlap(
+        query=f"{title} {description}",
+        items=themes,
+        haystack_of=lambda t: f"{t.theme_name} {t.description or ''}",
+        top_n=top_n,
+    )
+    return [
+        ProposedCandidate(
+            id=str(m.item.id),
+            code=m.item.approval_ref or "",
+            name=m.item.theme_name,
+            confidence=m.confidence,
+            rationale=m.rationale,
+        )
+        for m in matches
+    ]

@@ -22,6 +22,7 @@ from ancol_common.bjr.evaluators import EVALUATORS, EvaluationContext, Evaluator
 from ancol_common.bjr.scorer import BJRScoreResult, ChecklistSnapshot, compute_scores
 from ancol_common.config import get_settings
 from ancol_common.db.models import BJRChecklistItemRecord, StrategicDecision
+from ancol_common.schemas.bjr import ChecklistItemStatus
 
 
 @dataclass
@@ -78,16 +79,17 @@ async def compute_bjr(
     scores = compute_scores(snapshots, gate_5_threshold=settings.bjr_gate5_threshold)
 
     # Write scores back to the decision
+    now = datetime.now(UTC)
     decision.bjr_readiness_score = scores.bjr_readiness_score
     decision.corporate_compliance_score = scores.corporate_compliance_score
     decision.regional_compliance_score = scores.regional_compliance_score
-    decision.updated_at = datetime.now(UTC)
+    decision.updated_at = now
 
     return BJRComputeResult(
         decision_id=decision_id,
         items=results,
         scores=scores,
-        computed_at=datetime.now(UTC),
+        computed_at=now,
     )
 
 
@@ -126,8 +128,8 @@ async def _upsert_checklist_rows(
             )
             session.add(row)
         else:
-            # Preserve manual overrides — don't overwrite a 'waived' status set by a human
-            if row.status != "waived":
+            # Preserve manual overrides — a human-set 'waived' stays waived on recompute.
+            if row.status != ChecklistItemStatus.WAIVED.value:
                 row.status = r.status
                 row.ai_confidence = r.ai_confidence
                 row.evidence_refs = r.evidence_refs or None

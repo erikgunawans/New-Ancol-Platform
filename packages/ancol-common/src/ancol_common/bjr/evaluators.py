@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ancol_common.db.models import (
@@ -31,10 +32,12 @@ from ancol_common.db.models import (
     MaterialDisclosure,
     OrganApproval,
     RelatedPartyEntity,
+    RKABLineItem,
     SPIReport,
     StrategicDecision,
 )
 from ancol_common.schemas.bjr import BJRItemCode, ChecklistItemStatus, ChecklistPhase
+from ancol_common.schemas.decision import EvidenceType, RKABApprovalStatus
 
 
 @dataclass
@@ -148,9 +151,6 @@ async def eval_pd_03_rkab(ctx: EvaluationContext) -> EvaluatorResult:
                 "approved RKAB void BJR protection. Link via /api/rkab/match."
             ),
         )
-    # Load the linked RKAB item
-    from ancol_common.db.models import RKABLineItem
-
     result = await ctx.session.execute(
         select(RKABLineItem).where(RKABLineItem.id == ctx.decision.rkab_line_id)
     )
@@ -163,7 +163,11 @@ async def eval_pd_03_rkab(ctx: EvaluationContext) -> EvaluatorResult:
             regulation_basis=["PERGUB-DKI-127-2019"],
             remediation_note="rkab_line_id references missing row — data integrity issue.",
         )
-    if rkab.approval_status in ("rups_approved", "dewas_approved"):
+    approved_statuses = {
+        RKABApprovalStatus.RUPS_APPROVED.value,
+        RKABApprovalStatus.DEWAS_APPROVED.value,
+    }
+    if rkab.approval_status in approved_statuses:
         return EvaluatorResult(
             item_code=BJRItemCode.PD_03_RKAB.value,
             phase=ChecklistPhase.PRE_DECISION.value,
@@ -210,7 +214,7 @@ async def eval_pd_05_coi(ctx: EvaluationContext) -> EvaluatorResult:
     an active RelatedPartyEntity, flag. More sophisticated matching awaits
     AI-assist in bjr-agent service.
     """
-    mom_ids = await _linked_evidence_ids(ctx, evidence_type="mom")
+    mom_ids = await _linked_evidence_ids(ctx, evidence_type=EvidenceType.MOM.value)
     if not mom_ids:
         # No MoMs linked yet — PD-05 applies only when Direksi involved
         return EvaluatorResult(
@@ -264,7 +268,7 @@ async def eval_pd_05_coi(ctx: EvaluationContext) -> EvaluatorResult:
 
 async def eval_d_06_quorum(ctx: EvaluationContext) -> EvaluatorResult:
     """D-06-QUORUM (CRITICAL): Board meeting held with valid quorum."""
-    mom_ids = await _linked_evidence_ids(ctx, evidence_type="mom")
+    mom_ids = await _linked_evidence_ids(ctx, evidence_type=EvidenceType.MOM.value)
     if not mom_ids:
         return EvaluatorResult(
             item_code=BJRItemCode.D_06_QUORUM.value,
@@ -296,7 +300,7 @@ async def eval_d_06_quorum(ctx: EvaluationContext) -> EvaluatorResult:
 
 async def eval_d_07_signed(ctx: EvaluationContext) -> EvaluatorResult:
     """D-07-SIGNED: Minutes signed by required parties."""
-    mom_ids = await _linked_evidence_ids(ctx, evidence_type="mom")
+    mom_ids = await _linked_evidence_ids(ctx, evidence_type=EvidenceType.MOM.value)
     if not mom_ids:
         return EvaluatorResult(
             item_code=BJRItemCode.D_07_SIGNED.value,
@@ -330,7 +334,7 @@ async def eval_d_08_risk(ctx: EvaluationContext) -> EvaluatorResult:
     v1 heuristic: scan MoM full_text for risk-language keywords (Bahasa
     Indonesia + English). Gemini scan in bjr-agent service will replace this.
     """
-    mom_ids = await _linked_evidence_ids(ctx, evidence_type="mom")
+    mom_ids = await _linked_evidence_ids(ctx, evidence_type=EvidenceType.MOM.value)
     if not mom_ids:
         return EvaluatorResult(
             item_code=BJRItemCode.D_08_RISK.value,
@@ -376,7 +380,7 @@ async def eval_d_08_risk(ctx: EvaluationContext) -> EvaluatorResult:
 
 async def eval_d_09_legal(ctx: EvaluationContext) -> EvaluatorResult:
     """D-09-LEGAL: Linked contracts reviewed by legal team."""
-    contract_ids = await _linked_evidence_ids(ctx, evidence_type="contract")
+    contract_ids = await _linked_evidence_ids(ctx, evidence_type=EvidenceType.CONTRACT.value)
     if not contract_ids:
         return EvaluatorResult(
             item_code=BJRItemCode.D_09_LEGAL.value,
@@ -477,7 +481,10 @@ async def eval_post_12_monitor(ctx: EvaluationContext) -> EvaluatorResult:
     v1: satisfied iff decision has any post-decision evidence linked. Manual
     override is possible via PATCH on the checklist item.
     """
-    monitor_evidence_types = {"spi_report", "audit_committee_report"}
+    monitor_evidence_types = {
+        EvidenceType.SPI_REPORT.value,
+        EvidenceType.AUDIT_COMMITTEE_REPORT.value,
+    }
     result = await ctx.session.execute(
         select(DecisionEvidenceRecord).where(
             DecisionEvidenceRecord.decision_id == ctx.decision.id,
@@ -503,22 +510,22 @@ async def eval_post_12_monitor(ctx: EvaluationContext) -> EvaluatorResult:
 async def eval_post_13_spi(ctx: EvaluationContext) -> EvaluatorResult:
     """POST-13-SPI: SPI report references this decision within lookback window."""
     cutoff = datetime.now(UTC) - timedelta(days=ctx.spi_lookback_days)
+    decision_array = array([ctx.decision.id])
     result = await ctx.session.execute(
-        select(SPIReport).where(
-            SPIReport.related_decision_ids.isnot(None),
+        select(SPIReport)
+        .where(
+            SPIReport.related_decision_ids.op("@>")(decision_array),
             SPIReport.created_at >= cutoff,
         )
+        .limit(3)
     )
-    candidates = list(result.scalars().all())
-    matching = [
-        r for r in candidates if _decision_in_array(r.related_decision_ids, ctx.decision.id)
-    ]
+    matching = list(result.scalars().all())
     if matching:
         return EvaluatorResult(
             item_code=BJRItemCode.POST_13_SPI.value,
             phase=ChecklistPhase.POST_DECISION.value,
             status=ChecklistItemStatus.SATISFIED.value,
-            evidence_refs=[{"type": "spi_report", "id": str(r.id)} for r in matching[:3]],
+            evidence_refs=[{"type": "spi_report", "id": str(r.id)} for r in matching],
             regulation_basis=["PERGUB-DKI-1-2020", "PP-54-2017"],
         )
     return EvaluatorResult(
@@ -534,16 +541,20 @@ async def eval_post_13_spi(ctx: EvaluationContext) -> EvaluatorResult:
 
 async def eval_post_14_auditcom(ctx: EvaluationContext) -> EvaluatorResult:
     """POST-14-AUDITCOM: Audit Committee reviewed this decision."""
-    result = await ctx.session.execute(select(AuditCommitteeReport))
-    reports = list(result.scalars().all())
-    matching = [r for r in reports if _decision_in_array(r.decisions_reviewed, ctx.decision.id)]
+    decision_array = array([ctx.decision.id])
+    result = await ctx.session.execute(
+        select(AuditCommitteeReport)
+        .where(AuditCommitteeReport.decisions_reviewed.op("@>")(decision_array))
+        .limit(3)
+    )
+    matching = list(result.scalars().all())
     if matching:
         return EvaluatorResult(
             item_code=BJRItemCode.POST_14_AUDITCOM.value,
             phase=ChecklistPhase.POST_DECISION.value,
             status=ChecklistItemStatus.SATISFIED.value,
             evidence_refs=[
-                {"type": "audit_committee_report", "id": str(r.id)} for r in matching[:3]
+                {"type": "audit_committee_report", "id": str(r.id)} for r in matching
             ],
             regulation_basis=["PERGUB-DKI-13-2020", "POJK-35-2014"],
         )
@@ -559,17 +570,17 @@ async def eval_post_14_auditcom(ctx: EvaluationContext) -> EvaluatorResult:
 async def eval_post_15_dewas(ctx: EvaluationContext) -> EvaluatorResult:
     """POST-15-DEWAS: Periodic reports sent to Dewan Pengawas."""
     cutoff = datetime.now(UTC) - timedelta(days=ctx.spi_lookback_days)
+    decision_array = array([ctx.decision.id])
     result = await ctx.session.execute(
-        select(SPIReport).where(
+        select(SPIReport)
+        .where(
+            SPIReport.related_decision_ids.op("@>")(decision_array),
             SPIReport.sent_to_dewas_at.isnot(None),
             SPIReport.sent_to_dewas_at >= cutoff,
         )
+        .limit(1)
     )
-    matching = [
-        r
-        for r in result.scalars().all()
-        if _decision_in_array(r.related_decision_ids, ctx.decision.id)
-    ]
+    matching = list(result.scalars().all())
     return EvaluatorResult(
         item_code=BJRItemCode.POST_15_DEWAS.value,
         phase=ChecklistPhase.POST_DECISION.value,
@@ -601,12 +612,24 @@ async def eval_post_16_archive(ctx: EvaluationContext) -> EvaluatorResult:
             regulation_basis=["UU-PT-40-2007", "PP-23-2022"],
             remediation_note="No evidence linked yet.",
         )
-    # Check each evidence has a gcs_uri by looking up the underlying row.
-    missing: list[str] = []
+    # Batch one query per evidence_type (at most 8 — replaces N+1 per-row lookup).
+    by_type: dict[str, list[uuid.UUID]] = {}
     for ev in evidence_records:
-        uri = await _evidence_gcs_uri(ctx.session, ev.evidence_type, ev.evidence_id)
-        if uri is None:
-            missing.append(f"{ev.evidence_type}:{ev.evidence_id}")
+        by_type.setdefault(ev.evidence_type, []).append(ev.evidence_id)
+    missing: list[str] = []
+    for ev_type, ids in by_type.items():
+        entry = _EVIDENCE_MODEL_MAP.get(ev_type)
+        if entry is None:
+            continue
+        model, uri_attr = entry
+        uri_col = getattr(model, uri_attr)
+        rows = await ctx.session.execute(
+            select(model.id, uri_col).where(model.id.in_(ids))
+        )
+        uris = dict(rows.all())
+        for ev_id in ids:
+            if uris.get(ev_id) is None:
+                missing.append(f"{ev_type}:{ev_id}")
     if missing:
         return EvaluatorResult(
             item_code=BJRItemCode.POST_16_ARCHIVE.value,
@@ -651,37 +674,18 @@ def _extract_attendee_names(attendees: dict | list) -> list[str]:
     return names
 
 
-def _decision_in_array(array_val, decision_id: uuid.UUID) -> bool:
-    """Check if a decision UUID is present in a UUID[] column value."""
-    if not array_val:
-        return False
-    target = str(decision_id)
-    return any(str(x) == target for x in array_val)
-
-
-async def _evidence_gcs_uri(
-    session: AsyncSession, evidence_type: str, evidence_id: uuid.UUID
-) -> str | None:
-    """Return the gcs_uri of a polymorphic evidence row, or None if missing."""
-    type_to_model = {
-        "mom": (Document, "gcs_raw_uri"),
-        "contract": (Contract, "gcs_raw_uri"),
-        "dd_report": (DueDiligenceReport, "gcs_uri"),
-        "fs_report": (FeasibilityStudyReport, "gcs_uri"),
-        "spi_report": (SPIReport, "gcs_uri"),
-        "audit_committee_report": (AuditCommitteeReport, "gcs_uri"),
-        "ojk_disclosure": (MaterialDisclosure, "gcs_uri"),
-        "organ_approval": (OrganApproval, "gcs_uri"),
-    }
-    entry = type_to_model.get(evidence_type)
-    if entry is None:
-        return None
-    model, uri_attr = entry
-    result = await session.execute(select(model).where(model.id == evidence_id))
-    row = result.scalar_one_or_none()
-    if row is None:
-        return None
-    return getattr(row, uri_attr, None)
+# Maps evidence_type → (ORM model, name of the gcs URI column).
+# Used by POST-16-ARCHIVE to batch-check archival completeness.
+_EVIDENCE_MODEL_MAP: dict[str, tuple[type, str]] = {
+    EvidenceType.MOM.value: (Document, "gcs_raw_uri"),
+    EvidenceType.CONTRACT.value: (Contract, "gcs_raw_uri"),
+    EvidenceType.DD_REPORT.value: (DueDiligenceReport, "gcs_uri"),
+    EvidenceType.FS_REPORT.value: (FeasibilityStudyReport, "gcs_uri"),
+    EvidenceType.SPI_REPORT.value: (SPIReport, "gcs_uri"),
+    EvidenceType.AUDIT_COMMITTEE_REPORT.value: (AuditCommitteeReport, "gcs_uri"),
+    EvidenceType.OJK_DISCLOSURE.value: (MaterialDisclosure, "gcs_uri"),
+    EvidenceType.ORGAN_APPROVAL.value: (OrganApproval, "gcs_uri"),
+}
 
 
 # Registry — order matters for deterministic checklist display

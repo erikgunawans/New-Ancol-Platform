@@ -254,9 +254,19 @@ async def decisions_dashboard(
     _auth=require_permission("decisions:list"),
 ):
     async with get_session() as session:
-        total_result = await session.execute(select(func.count(StrategicDecision.id)))
-        total = total_result.scalar() or 0
+        # One query: total + avg score + locked count (three aggregates)
+        agg_result = await session.execute(
+            select(
+                func.count(StrategicDecision.id),
+                func.avg(StrategicDecision.bjr_readiness_score),
+                func.count(StrategicDecision.id).filter(
+                    StrategicDecision.is_bjr_locked.is_(True)
+                ),
+            )
+        )
+        total, avg_score, locked_count = agg_result.one()
 
+        # Second query: by-status breakdown + pending Gate 5 count in one SELECT
         status_result = await session.execute(
             select(StrategicDecision.status, func.count(StrategicDecision.id)).group_by(
                 StrategicDecision.status
@@ -264,33 +274,18 @@ async def decisions_dashboard(
         )
         by_status = {row[0]: row[1] for row in status_result.all()}
 
-        avg_result = await session.execute(
-            select(func.avg(StrategicDecision.bjr_readiness_score)).where(
-                StrategicDecision.bjr_readiness_score.isnot(None)
-            )
-        )
-        avg_score = avg_result.scalar()
-        avg_score_float = round(float(avg_score), 2) if avg_score is not None else None
-
-        locked_result = await session.execute(
-            select(func.count(StrategicDecision.id)).where(
-                StrategicDecision.is_bjr_locked.is_(True)
-            )
-        )
-        locked_count = locked_result.scalar() or 0
-
-        gate_5_pending_result = await session.execute(
+        gate_5_result = await session.execute(
             select(func.count(BJRGate5Decision.id)).where(
                 BJRGate5Decision.final_decision == "pending"
             )
         )
-        gate_5_pending = gate_5_pending_result.scalar() or 0
+        gate_5_pending = gate_5_result.scalar() or 0
 
     return DashboardResponse(
-        total_decisions=total,
+        total_decisions=total or 0,
         by_status=by_status,
-        avg_readiness_score=avg_score_float,
-        locked_count=locked_count,
+        avg_readiness_score=round(float(avg_score), 2) if avg_score is not None else None,
+        locked_count=locked_count or 0,
         gate_5_pending_count=gate_5_pending,
     )
 

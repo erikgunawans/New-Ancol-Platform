@@ -228,12 +228,22 @@ class RetroactiveProposeRequest(BaseModel):
     document_id: str
 
 
+class MatchCandidate(BaseModel):
+    """Generic match candidate (works for RKAB, RJPP, or any token-ranked row)."""
+
+    id: str
+    code: str
+    name: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    rationale: str | None = None
+
+
 class ProposedDecisionDraft(BaseModel):
     """AI-proposed Decision draft with top-3 RKAB/RJPP candidates."""
 
     proposed_title: str
     proposed_description: str
     proposed_initiative_type: InitiativeType
-    rkab_candidates: list[RKABMatchCandidate] = []
-    rjpp_candidates: list[RKABMatchCandidate] = []
+    rkab_candidates: list[MatchCandidate] = []
+    rjpp_candidates: list[MatchCandidate] = []
     reasoning: str | None = None

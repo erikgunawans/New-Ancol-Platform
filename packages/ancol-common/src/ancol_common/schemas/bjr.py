@@ -183,17 +183,10 @@ class BJRAgentOutput(BaseModel):
 # -- Gate 5 dual-approval --
 
 
-class Gate5KomisarisDecision(BaseModel):
-    """Komisaris half of Gate 5."""
+class Gate5HalfDecision(BaseModel):
+    """One half of Gate 5 dual-approval. Used identically for Komisaris and Legal."""
 
-    decision: str  # "approved" or "rejected"
-    notes: str | None = None
-
-
-class Gate5LegalDecision(BaseModel):
-    """Legal half of Gate 5."""
-
-    decision: str  # "approved" or "rejected"
+    decision: str  # "approved" or "rejected" — validated by Gate5FinalDecision at router edge
     notes: str | None = None
 
 

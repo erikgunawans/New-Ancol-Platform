@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from ancol_common.auth.rbac import require_permission
+from ancol_common.bjr.matching import rank_by_token_overlap
 from ancol_common.db.connection import get_session
 from ancol_common.db.models import RKABLineItem
 from fastapi import APIRouter, HTTPException, Query
@@ -184,7 +185,7 @@ async def match_rkab(
 ):
     """Return candidate RKAB line items for a decision title/description.
 
-    v1 implementation: case-insensitive substring match against activity_name +
+    v1 implementation: case-insensitive token overlap against activity_name +
     category. Phase 6.3 replaces this with Gemini Flash classification.
     """
     async with get_session() as session:
@@ -196,28 +197,22 @@ async def match_rkab(
         )
         items = list(result.scalars().all())
 
-    query_text = f"{payload.decision_title} {payload.decision_description or ''}".lower()
-    candidates: list[RKABMatchCandidate] = []
-    for item in items:
-        haystack = f"{item.activity_name} {item.category} {item.description or ''}".lower()
-        # Simple token overlap score — v2 uses embeddings
-        query_tokens = set(query_text.split())
-        hay_tokens = set(haystack.split())
-        overlap = len(query_tokens & hay_tokens)
-        denom = max(len(query_tokens), 1)
-        confidence = min(overlap / denom, 1.0) if overlap > 0 else 0.0
-        if confidence > 0:
-            candidates.append(
-                RKABMatchCandidate(
-                    rkab_line_id=str(item.id),
-                    code=item.code,
-                    activity_name=item.activity_name,
-                    confidence=round(confidence, 2),
-                    rationale=f"Token overlap: {overlap}/{denom}",
-                )
-            )
-    candidates.sort(key=lambda c: c.confidence, reverse=True)
-    top = candidates[:3]
+    matches = rank_by_token_overlap(
+        query=f"{payload.decision_title} {payload.decision_description or ''}",
+        items=items,
+        haystack_of=lambda r: f"{r.activity_name} {r.category} {r.description or ''}",
+        top_n=3,
+    )
+    top = [
+        RKABMatchCandidate(
+            rkab_line_id=str(m.item.id),
+            code=m.item.code,
+            activity_name=m.item.activity_name,
+            confidence=m.confidence,
+            rationale=m.rationale,
+        )
+        for m in matches
+    ]
     return RKABMatchResponse(
         candidates=top,
         best_match=top[0] if top and top[0].confidence >= 0.3 else None,
