@@ -154,6 +154,9 @@ async def test_upsert_approved_by_edge_keyed_by_half_not_user() -> None:
     assert "OPTIONAL MATCH" in cypher
     assert "APPROVED_BY {half: $half}" in cypher
     assert "DELETE" in cypher
+    # DISTINCT collapses duplicate (d, u) rows from OPTIONAL MATCH so CREATE
+    # runs exactly once even if multiple stale edges were cleaned up.
+    assert "WITH DISTINCT" in cypher
     # The new edge is created (not merged) after the cleanup.
     assert "CREATE" in cypher
 

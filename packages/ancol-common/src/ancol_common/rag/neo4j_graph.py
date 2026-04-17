@@ -361,7 +361,7 @@ class Neo4jGraphClient(GraphClient):
         WITH d, u
         OPTIONAL MATCH (d)-[old_ab:APPROVED_BY {half: $half}]->(:User)
         DELETE old_ab
-        WITH d, u
+        WITH DISTINCT d, u
         CREATE (d)-[:APPROVED_BY {half: $half, approved_at: $approved_at}]->(u)
         """
         params = {
