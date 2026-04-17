@@ -23,7 +23,7 @@ Constraints that must not be broken:
 - **Independent dual approval** (Komisaris + Legal) — neither can impersonate the other
 - **Auditable trail** for every state transition — `audit_trail` table must correlate to a verifiable identity
 - **Data sovereignty** — all personal and financial data must reside in asia-southeast2
-- **MFA JWT bound to IAP sub claim** (existing invariant in [auth/mfa.py](../../../packages/ancol-common/src/ancol_common/auth/mfa.py)) — must not be weakened
+- **MFA JWT bound to IAP sub claim** (existing invariant in [packages/ancol-common/src/ancol_common/auth/mfa.py](../../../packages/ancol-common/src/ancol_common/auth/mfa.py) — see `verify_totp_code` and the JWT issuance flow) — must not be weakened
 - **16-item `BJRItemCode` contract** ([schemas/bjr.py](../../../packages/ancol-common/src/ancol_common/schemas/bjr.py)) — stable across agent JSON, chat tools, Passport PDF, audit_trail
 
 This spec describes how to move BJR's primary interface into Gemini Enterprise chat while preserving all six constraints above, using a **chat-first with step-up** pattern.
@@ -68,7 +68,7 @@ USER
   │
   └──► WhatsApp push link (for Gate 5, material disclosure, MFA enrollment only)
            │
-           └──► web/app/step-up/{intent}/[token] (NEW, 3 Next.js pages)
+           └──► web/src/app/step-up/{intent}/[token] (NEW, 3 Next.js pages)
                      │
                      └──► POST /step-up/consume → API Gateway → state transition
                               │                                    │
@@ -86,7 +86,7 @@ USER
 
 **What stays unchanged from v0.4.0.0:** BJR scoring engine (`scorer.py`, `evaluators.py`, `compute.py`), 16-item `BJRItemCode` contract, 12 BJR DB tables, 26 API endpoints, 543 existing tests, `_maybe_finalize_gate5` transition-first ordering, unique index + `SELECT FOR UPDATE` on Gate 5 race.
 
-**What is deleted:** stub pages at `web/app/bjr/decisions/`, `web/app/bjr/wizard/`, `web/app/bjr/retroactive/` (scaffolded earlier but never wired — see PROGRESS.md memory S27).
+**Note on existing BJR web stubs:** none of `web/src/app/bjr/decisions/`, `web/src/app/bjr/wizard/`, `web/src/app/bjr/retroactive/` actually exist in the repo (verified via `ls web/src/app/`). Memory S27 noted scaffolding at 4:22pm on 2026-04-17 but those files were never committed. Phase 6.4a therefore has no "deletion" work for BJR stubs.
 
 ## 4. Component Design
 
@@ -176,19 +176,21 @@ Location: `services/api-gateway/src/api_gateway/routers/step_up.py` (NEW)
 
 The two public routes live at `/step-up/*` (not `/api/step-up/*`) so the Next.js pages can call them without the `/api` prefix rewrite. Rate-limited (10 req/min per IP).
 
+**Relationship to existing Gate 5 endpoints:** `POST /api/decisions/{id}/gate5/komisaris` and `POST /api/decisions/{id}/gate5/legal` already exist (shipped in v0.4.0.0) with direct MFA. They are **kept** as-is for backward compat and as the web fallback path. Their bodies get refactored to call two new private helpers `_apply_komisaris_half(session, decision_id, user, decision, notes, audit_context)` and `_apply_legal_half(...)` that encapsulate the row-lock + `_ensure_gate5_row` + update + audit trail + `_maybe_finalize_gate5` sequence. The new `POST /step-up/consume` endpoint also calls those helpers after verifying the token + TOTP + RBAC. This means the Gate 5 invariants (unique index + SELECT FOR UPDATE + transition-first ordering) live in **one place** and both paths share them — no copy-paste drift.
+
 ### 4.5 Step-up web pages
 
-Location: `web/app/step-up/`
+Location: `web/src/app/step-up/`
 
 Three single-screen pages, each ~200 LOC:
 
-- `web/app/step-up/gate5-komisaris/[token]/page.tsx`
-- `web/app/step-up/gate5-legal/[token]/page.tsx`
-- `web/app/step-up/material-disclosure/[token]/page.tsx`
+- `web/src/app/step-up/gate5-komisaris/[token]/page.tsx`
+- `web/src/app/step-up/gate5-legal/[token]/page.tsx`
+- `web/src/app/step-up/material-disclosure/[token]/page.tsx`
 
 Plus one non-token-gated page:
 
-- `web/app/mfa-enroll/page.tsx` (NEW — MFA enrollment is currently API-only per CLAUDE.md gotcha "MFA endpoints are accessible without MFA to avoid chicken-and-egg"; this page adds the missing UI surface)
+- `web/src/app/mfa-enroll/page.tsx` (NEW — MFA enrollment is currently API-only per CLAUDE.md gotcha "MFA endpoints are accessible without MFA to avoid chicken-and-egg"; this page adds the missing UI surface)
 
 **Page structure (identical pattern across all three token-gated pages):**
 
@@ -206,9 +208,9 @@ Plus one non-token-gated page:
 
 ### 4.6 Graph schema extensions
 
-Location: `packages/ancol-common/src/ancol_common/rag/graph_client.py`
+**Pre-requisite relocation:** `GraphClient` currently lives at `services/gemini-agent/src/gemini_agent/rag/graph_client.py`. API Gateway needs graph access for the `/api/documents/{id}/bjr-indicators` endpoint, so the abstract class + both implementations move to `packages/ancol-common/src/ancol_common/rag/graph_client.py` in Phase 6.4a. Existing gemini-agent imports refactored to use the shared package. Fully backward-compatible — no behavior change, same interface.
 
-Extends the existing `GraphClient` abstract interface with 6 new methods, implemented in both `SpannerGraphClient` and `Neo4jGraphClient`:
+After relocation, extends `GraphClient` with 6 new methods, implemented in both `SpannerGraphClient` and `Neo4jGraphClient`:
 
 ```python
 async def upsert_decision_node(self, d: StrategicDecision) -> None
@@ -354,19 +356,27 @@ K opens /step-up/gate5-komisaris/{tokenK} in browser
    │   API Gateway:
    │     1. verify_token(intent=GATE5_KOMISARIS)
    │     2. Re-verify K's IAP session == token.sub
-   │     3. mfa.verify_totp(K.user_id, totp) → returns MFA JWT bound to K's IAP sub
+   │     3. mfa.verify_totp_code(fernet_decrypt(K.mfa_secret_encrypted), totp) + mfa.create_mfa_token(K.iap_email)
+   │        → returns (mfa_token, expires_at); token has claims {sub=K.iap_email, type='mfa_verified', iat, exp, jti}
+   │        (jti claim is NEW — see Phase 6.4c deliverables; needed for audit_trail correlation)
    │     4. require_permission("bjr:gate5_komisaris")
    │     5. TX begin; SELECT ... FOR UPDATE on decisions.id=X; assert state == bjr_gate_5
    │     6. UPDATE step_up_tokens SET consumed_at=now() WHERE jti=tokenK_jti AND consumed_at IS NULL
    │        → if zero rows: raise 409 (race; someone else consumed)
    │     7. _ensure_gate5_row(decision_id=X) — existing idempotent helper
    │        (unique index on bjr_gate5_decisions.decision_id + IntegrityError fallback)
-   │     8. UPDATE bjr_gate5_decisions
-   │          SET komisaris_decision='approved',
-   │              komisaris_id=K.user_id,
-   │              komisaris_at=now(),
-   │              komisaris_mfa_jti=mfa_jwt.jti
+   │     8. Invoke shared helper `_apply_komisaris_half(decision_id=X, user=K, decision='approved',
+   │        mfa_jwt=mfa_jwt)` — refactored from existing gate5_komisaris endpoint
+   │        body in routers/decisions.py. Helper does:
+   │          UPDATE bjr_gate5_decisions
+   │            SET komisaris_decision='approved',
+   │                approver_komisaris_id=K.user_id,
+   │                komisaris_decided_at=now(),
+   │                komisaris_notes=<optional>
    │          WHERE decision_id=X
+   │        (Column names match existing [db/models.py] BJRGate5Decision schema:
+   │         approver_komisaris_id, komisaris_decided_at, komisaris_decision.
+   │         MFA JWT jti captured in audit_trail at step 9, not in bjr_gate5_decisions.)
    │     9. INSERT audit_trail (action='gate5_komisaris_approved',
    │                            user_id=K, decision_id=X,
    │                            step_up_token_jti=tokenK_jti,
@@ -411,7 +421,7 @@ _maybe_finalize_gate5(decision_id=X):
 
 - Gate 5 unique index on `bjr_gate5_decisions.decision_id` + `SELECT FOR UPDATE` — still in force at STEP 2 point 5 and 7
 - Transition first, then set `final_decision=approved` — STEP 4 ordering unchanged
-- MFA JWT bound to IAP `sub` — STEP 2 point 3 uses existing `mfa.verify_totp` which emits IAP-bound JWT; no change to binding logic
+- MFA JWT bound to IAP `sub` — STEP 2 point 3 uses existing `mfa.verify_totp_code` + `create_mfa_token` which emits IAP-bound JWT; binding logic unchanged. The only addition is a `jti` UUID claim for audit correlation (set in `create_mfa_token`).
 - Row-locked Gate 5 row — existing `_ensure_gate5_row` pattern
 
 **New invariants introduced:**
@@ -517,7 +527,7 @@ services/api-gateway/ auth/iap.py (verifies IAP JWT, extracts sub + email)
   ↓ (require_permission check)
 RBAC permission matrix (auth/rbac.py)
   ↓ (MFA step-up for MFA-gated actions only)
-auth/mfa.py verify_totp + issue MFA JWT bound to sub
+auth/mfa.py verify_totp_code + create_mfa_token (JWT bound to sub; adds jti claim in 6.4c)
   ↓
 audit_trail INSERT with full correlation IDs
 ```
@@ -539,22 +549,31 @@ ALTER TABLE audit_trail ADD COLUMN mfa_jwt_jti UUID;
 **Auditor query:** "Show me all Gate 5 approvals in Q2 2026 with full provenance":
 
 ```sql
+-- Main Gate 5 approval events (one row per half-approval + finalization)
 SELECT at.created_at, at.user_id, u.display_name, at.action,
        at.chat_session_id, at.chat_tool_name,
-       at.step_up_token_jti, sut.issued_at AS token_issued,
-       at.mfa_jwt_jti, me.method AS mfa_method, me.device_fingerprint,
-       g.decision_id, g.komisaris_decision, g.legal_decision
+       at.step_up_token_jti, sut.issued_at AS token_issued, sut.expires_at AS token_expires,
+       at.mfa_jwt_jti,
+       g.decision_id, g.approver_komisaris_id, g.komisaris_decision, g.komisaris_decided_at,
+       g.approver_legal_id, g.legal_decision, g.legal_decided_at,
+       g.final_decision, g.locked_at
 FROM audit_trail at
 LEFT JOIN step_up_tokens sut ON sut.jti = at.step_up_token_jti
-LEFT JOIN mfa_events me ON me.jti = at.mfa_jwt_jti
 LEFT JOIN bjr_gate5_decisions g ON g.decision_id = at.resource_id
 LEFT JOIN users u ON u.id = at.user_id
 WHERE at.action IN ('gate5_komisaris_approved','gate5_legal_approved','gate5_finalized')
   AND at.created_at BETWEEN '2026-04-01' AND '2026-06-30'
 ORDER BY at.created_at;
+
+-- Correlated MFA verification events (same mfa_jwt_jti, separate audit_trail row per verification)
+SELECT created_at, user_id, action, mfa_jwt_jti
+FROM audit_trail
+WHERE action = 'mfa_verified'
+  AND mfa_jwt_jti IN (<set from first query>)
+ORDER BY created_at;
 ```
 
-Every row is reconstructible: who (user + MFA device), when (token + approval timestamps), where (chat session if applicable), what (decision + half), how (step-up flow).
+Every row is reconstructible: who (user via `user_id` + correlated `mfa_verified` event with same `mfa_jwt_jti`), when (token + approval timestamps), where (chat session if applicable), what (decision + half), how (step-up flow). Existing MFA verification writes its own `audit_trail` row with `action='mfa_verified'` and the new `mfa_jwt_jti` column (added by migration 006) — so correlation is a single column match, no separate `mfa_events` table needed.
 
 ### 6.3 Step-up token threat model
 
@@ -725,7 +744,7 @@ Extends existing `services/api-gateway/tests/_bjr_fixtures.py` helper module:
 - `test_gate5_parallel_race`: K and L consume within same event loop tick; row-lock resolves; finalize runs exactly once.
 - `test_gate5_rejection_flows`: K rejects; K approves, L rejects; both reject independently.
 - `test_gate5_token_lifecycle`: expired, already-consumed, wrong-user (cookie swap), wrong-intent, tampered signature, clock-skew boundary.
-- `test_gate5_audit_trail_correlation`: every step writes correlated rows across `audit_trail` + `step_up_tokens` + `bjr_gate5_decisions` + `mfa_events`.
+- `test_gate5_audit_trail_correlation`: every step writes correlated rows across `audit_trail` (main action row + `mfa_verified` row correlated by `mfa_jwt_jti`) + `step_up_tokens` + `bjr_gate5_decisions`.
 - `test_retroactive_bundle_chat_flow`: propose → confirm in chat → decision created with `origin='retroactive'`.
 - `test_material_disclosure_chat_flow`: draft in chat → step-up token → MFA → filed state + audit_trail.
 - `test_state_race_detection`: decision rejected between token issue and consume → 409 returned.
@@ -775,11 +794,13 @@ Automated testing cannot cover:
 - `services/gemini-agent/src/gemini_agent/tools/bjr_readiness.py`
 - `services/gemini-agent/src/gemini_agent/tools/bjr_evidence.py` (`show_document_indicators`, `show_decision_evidence`)
 - `services/gemini-agent/src/gemini_agent/tools/bjr_passport.py`
+- **GraphClient relocation** from `services/gemini-agent/src/gemini_agent/rag/graph_client.py` → `packages/ancol-common/src/ancol_common/rag/graph_client.py`; update gemini-agent imports
 - `packages/ancol-common/src/ancol_common/rag/graph_client.py` extensions (all 6 new methods, Neo4j + Spanner impls)
+- New API Gateway endpoint `GET /api/documents/{id}/bjr-indicators` in `services/api-gateway/src/api_gateway/routers/documents.py` (wraps `graph_client.get_document_indicators` + enriches with current decision state)
 - `scripts/bjr_graph_backfill.py`
-- Dispatcher + RBAC updates in `main.py`
+- Dispatcher + RBAC updates in `services/gemini-agent/src/gemini_agent/main.py`
 - Layer 1 tests (~30), Layer 3 tests (~10), Layer 4 tests (~5)
-- Delete `web/app/bjr/decisions/`, `web/app/bjr/wizard/`, `web/app/bjr/retroactive/` scaffolds
+- ~~Delete BJR web stubs~~ — no action needed; no such files exist in git (verified)
 - **Blocker gate:** Vertex AI Agent Builder region verification complete (§ 6.5)
 
 **Exit criteria:** chat can surface any existing decision + render indicators on all documents linked to it; all existing 543 tests pass; region verification complete.
@@ -804,12 +825,13 @@ Automated testing cannot cover:
 - `packages/ancol-common/src/ancol_common/schemas/step_up.py`
 - Migration 006 (step_up_tokens + audit_trail columns)
 - `services/api-gateway/src/api_gateway/routers/step_up.py`
-- `services/api-gateway/src/api_gateway/routers/decisions.py` — new `request_gate5_approval` endpoint
-- `web/app/step-up/gate5-komisaris/[token]/page.tsx`
-- `web/app/step-up/gate5-legal/[token]/page.tsx`
-- `web/app/step-up/material-disclosure/[token]/page.tsx`
-- `web/app/mfa-enroll/page.tsx` (NEW — no prior MFA UI existed)
-- `services/api-gateway/src/api_gateway/notifications/dispatcher.py` — `step_up_whatsapp` channel
+- `services/api-gateway/src/api_gateway/routers/decisions.py` — new `request_gate5_approval` endpoint + refactor existing `gate5/komisaris` and `gate5/legal` bodies to call new `_apply_komisaris_half` / `_apply_legal_half` helpers (shared with `/step-up/consume`)
+- `packages/ancol-common/src/ancol_common/auth/mfa.py` — extend `create_mfa_token` to include a `jti: UUID` claim so audit_trail can correlate MFA events back to specific approvals
+- `web/src/app/step-up/gate5-komisaris/[token]/page.tsx`
+- `web/src/app/step-up/gate5-legal/[token]/page.tsx`
+- `web/src/app/step-up/material-disclosure/[token]/page.tsx`
+- `web/src/app/mfa-enroll/page.tsx` (NEW — no prior MFA UI existed)
+- `packages/ancol-common/src/ancol_common/notifications/dispatcher.py` — extend with `send_step_up` helper that renders step-up link + WhatsApp template (existing dispatcher pattern; `whatsapp.py` channel module unchanged)
 - `bjr_gate5.py` chat tool (`request_gate5_approval`, `check_gate5_status`)
 - Layer 2 integration tests (~25)
 - Kill switch: `STEP_UP_ENABLED` env var (default true in staging, false in prod)
@@ -947,7 +969,7 @@ gcloud logging read 'resource.type="cloud_run_revision" AND
 **User-facing rollback:**
 
 - If chat-first design has unforeseen UX issues, operations can route users back to the old Phase 6.4 web UI by:
-  - Re-enabling the deleted `web/app/bjr/*` scaffolds (git revert)
+  - Building out web UI pages that were originally planned for Phase 6.4 (decisions dashboard, wizard, retroactive bundler) in a follow-up phase
   - Setting feature flag `BJR_CHAT_FIRST=false` in Agent Builder system prompt (removes proactive indicator directive)
 - Chat tools remain available as secondary surface
 
@@ -980,6 +1002,6 @@ gcloud logging read 'resource.type="cloud_run_revision" AND
 1. **Who owns the Vertex AI Agent Builder region verification in week 1 of 6.4a?** — likely Erik + Platform team; confirm at plan approval.
 2. **External legal counsel engagement timing.** — brief at end of 6.4c or earlier?
 3. **WhatsApp sender number(s).** — current dispatcher uses Twilio sandbox; production needs an approved business number. Procurement lead time?
-4. **MFA enrollment UX consistency.** — current `web/app/settings/mfa/` flow vs new `web/app/mfa-enroll/` page; consolidate or keep separate?
+4. **MFA enrollment UX consistency.** — no prior MFA web UI exists (MFA is currently API-only). The new `web/src/app/mfa-enroll/page.tsx` will be the sole MFA enrollment surface; confirm no existing MFA flows need migration.
 
 These are not blockers for writing the implementation plan but should be answered before Phase 6.4c.
