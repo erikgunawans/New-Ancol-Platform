@@ -87,3 +87,78 @@ def format_decision_list(result: dict, personalized_for: str | None = None) -> s
             f"(readiness {r_str}, status `{status or '?'}`)"
         )
     return "\n".join(rows)
+
+
+CRITICAL_ITEMS = frozenset({"PD-03-RKAB", "PD-05-COI", "D-06-QUORUM", "D-11-DISCLOSE"})
+
+
+def format_readiness_card(readiness: dict) -> str:
+    """Render readiness score + missing/flagged items as a chat card."""
+    score = readiness.get("readiness_score")
+    corp = readiness.get("corporate_score")
+    reg = readiness.get("regional_score")
+    unlockable = readiness.get("gate_5_unlockable", False)
+    flagged_critical = readiness.get("critical_items_flagged", [])
+    missing = readiness.get("missing_items", [])
+
+    emoji = "🟢" if unlockable else "🟡"
+    score_str = f"{score:.0f}" if score is not None else "—"
+    corp_str = f"{corp:.0f}" if corp is not None else "—"
+    reg_str = f"{reg:.0f}" if reg is not None else "—"
+    lines = [
+        f"{emoji} **BJR Readiness: {score_str}/100**",
+        f"Corporate: {corp_str} • Regional: {reg_str}  (min = readiness)",
+    ]
+    if unlockable:
+        lines.append("✅ **Gate 5 siap dibuka (ready)** — both regimes ≥ 85, no CRITICAL flagged.")
+    else:
+        lines.append("🔒 **Gate 5 belum bisa dibuka.**")
+        if flagged_critical:
+            flagged_str = ", ".join(f"`{c}`" for c in flagged_critical)
+            lines.append(f"  🚨 CRITICAL items flagged: {flagged_str}")
+        if missing:
+            top_missing = [f"`{c}`" for c in missing[:5]]
+            extra = f" (+{len(missing) - 5} more)" if len(missing) > 5 else ""
+            lines.append(f"  ⚠ Missing items: {', '.join(top_missing)}{extra}")
+    return "\n".join(lines)
+
+
+_ITEM_STATUS_EMOJI = {
+    "satisfied": "✓",
+    "flagged": "⚠",
+    "not_started": "○",
+    "in_progress": "…",
+}
+
+
+def format_checklist_summary(checklist: dict) -> str:
+    """Render the 16-item checklist grouped by phase."""
+    items = checklist.get("items", [])
+    by_phase: dict[str, list[dict]] = {
+        "pre-decision": [],
+        "decision": [],
+        "post-decision": [],
+    }
+    for item in items:
+        phase = (item.get("phase") or "").lower()
+        if phase in by_phase:
+            by_phase[phase].append(item)
+
+    lines = ["**16-item BJR checklist:**"]
+    for phase, title in [
+        ("pre-decision", "Pre-decision"),
+        ("decision", "Decision"),
+        ("post-decision", "Post-decision"),
+    ]:
+        phase_items = by_phase[phase]
+        if not phase_items:
+            continue
+        satisfied_count = sum(1 for it in phase_items if it.get("status") == "satisfied")
+        lines.append(f"\n**{title}** — {satisfied_count}/{len(phase_items)} satisfied")
+        for it in phase_items:
+            code = it.get("code", "?")
+            status = it.get("status", "unknown")
+            emoji = _ITEM_STATUS_EMOJI.get(status, "?")
+            marker = "  🚨 CRITICAL" if code in CRITICAL_ITEMS and status == "flagged" else ""
+            lines.append(f"  {emoji} `{code}` ({status}){marker}")
+    return "\n".join(lines)
