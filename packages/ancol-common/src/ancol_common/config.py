@@ -97,6 +97,19 @@ class Settings(BaseModel):
     )
     mfa_enabled: bool = os.getenv("MFA_ENABLED", "false").lower() == "true"
 
+    # BJR (Business Judgment Rule) — decision-level defensibility
+    bjr_enabled: bool = os.getenv("BJR_ENABLED", "true").lower() == "true"
+    bjr_agent_url: str = os.getenv("BJR_AGENT_URL", "")
+    bucket_bjr_passports: str = os.getenv("BUCKET_BJR_PASSPORTS", "ancol-bjr-passports")
+    bjr_gate5_threshold: float = float(os.getenv("BJR_GATE5_THRESHOLD", "85.0"))
+    bjr_gate5_sla_days: int = int(os.getenv("BJR_GATE5_SLA_DAYS", "5"))
+    bjr_rkab_match_threshold: float = float(os.getenv("BJR_RKAB_MATCH_THRESHOLD", "0.75"))
+    bjr_rjpp_match_threshold: float = float(os.getenv("BJR_RJPP_MATCH_THRESHOLD", "0.70"))
+    # Value threshold (IDR) above which OJK material disclosure is required
+    bjr_materiality_threshold_idr: float = float(
+        os.getenv("BJR_MATERIALITY_THRESHOLD_IDR", "10000000000.0")  # 10 billion IDR default
+    )
+
     # Environment
     environment: str = os.getenv("ENVIRONMENT", "dev")
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"

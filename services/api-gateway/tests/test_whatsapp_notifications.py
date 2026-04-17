@@ -267,9 +267,7 @@ class TestUserProfileSchemas:
     def test_valid_channels(self):
         from api_gateway.routers.users import UserProfileUpdateRequest
 
-        req = UserProfileUpdateRequest(
-            notification_channels=["email", "whatsapp", "in_app"]
-        )
+        req = UserProfileUpdateRequest(notification_channels=["email", "whatsapp", "in_app"])
         assert "whatsapp" in req.notification_channels
 
     def test_phone_with_channels(self):
@@ -300,9 +298,7 @@ class TestNotificationPreferencesSchemas:
             NotificationPreferencesUpdateRequest,
         )
 
-        req = NotificationPreferencesUpdateRequest(
-            channels=["email", "in_app", "whatsapp"]
-        )
+        req = NotificationPreferencesUpdateRequest(channels=["email", "in_app", "whatsapp"])
         assert "whatsapp" in req.channels
 
     def test_valid_channels_constant(self):

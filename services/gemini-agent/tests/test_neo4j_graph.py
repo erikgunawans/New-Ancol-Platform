@@ -22,9 +22,7 @@ def _make_neo4j_client():
         mock_db.driver.return_value = mock_driver
         from gemini_agent.rag.neo4j_graph import Neo4jGraphClient
 
-        client = Neo4jGraphClient(
-            uri="bolt://test:7687", username="neo4j", password="test"
-        )
+        client = Neo4jGraphClient(uri="bolt://test:7687", username="neo4j", password="test")
         return client, mock_driver
 
 

@@ -19,6 +19,7 @@ from ancol_common.db.models import (
     ContractPartyRecord,
     Document,
     ObligationRecord,
+    StrategicDecision,
     User,
 )
 
@@ -38,6 +39,29 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
     "complete": [],
     "failed": ["pending"],  # Allow retry
     "rejected": [],
+}
+
+
+# Valid state transitions for the StrategicDecision (BJR) state machine.
+# See schemas/decision.py DecisionStatus enum for the authoritative list.
+DECISION_TRANSITIONS: dict[str, list[str]] = {
+    "ideation": ["dd_in_progress", "cancelled"],
+    "dd_in_progress": ["fs_in_progress", "ideation"],
+    "fs_in_progress": ["rkab_verified", "dd_in_progress"],
+    "rkab_verified": ["board_proposed", "fs_in_progress"],
+    "board_proposed": ["organ_approval_pending", "rejected"],
+    "organ_approval_pending": ["approved", "rejected"],
+    "approved": ["executing"],
+    "executing": ["monitoring"],
+    "monitoring": ["bjr_gate_5"],
+    # bjr_gate_5 can go to: locked (both halves approved),
+    # monitoring (sent back for more evidence),
+    # or rejected (either half rejected — decision dies here).
+    "bjr_gate_5": ["bjr_locked", "monitoring", "rejected"],
+    "bjr_locked": ["archived"],
+    "archived": [],
+    "rejected": [],
+    "cancelled": [],
 }
 
 
@@ -66,6 +90,34 @@ async def transition_document_status(
     document.updated_at = datetime.now(UTC)
     if error_message:
         document.error_message = error_message
+    return True
+
+
+async def transition_decision_status(
+    session: AsyncSession,
+    decision_id: str,
+    new_status: str,
+) -> bool:
+    """Transition a StrategicDecision to a new status if the transition is valid.
+
+    Mirrors `transition_document_status` but for the BJR decision state machine.
+    Returns True if transition succeeded, False if invalid or decision missing.
+    """
+    dec_uuid = uuid.UUID(decision_id)
+    result = await session.execute(
+        select(StrategicDecision).where(StrategicDecision.id == dec_uuid)
+    )
+    decision = result.scalar_one_or_none()
+
+    if decision is None:
+        return False
+
+    current_status = decision.status
+    if new_status not in DECISION_TRANSITIONS.get(current_status, []):
+        return False
+
+    decision.status = new_status
+    decision.updated_at = datetime.now(UTC)
     return True
 
 

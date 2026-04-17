@@ -63,16 +63,15 @@ async def get_preferences(request: Request, _auth=require_permission("notificati
 
 @router.patch("/me/preferences", response_model=NotificationPreferencesResponse)
 async def update_preferences(
-    request: Request, body: NotificationPreferencesUpdateRequest,
+    request: Request,
+    body: NotificationPreferencesUpdateRequest,
     _auth=require_permission("notifications:manage"),
 ):
     """Update current user's notification channel preferences."""
     iap_user = get_iap_user(request)
     invalid = set(body.channels) - VALID_CHANNELS
     if invalid:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid channels: {', '.join(invalid)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid channels: {', '.join(invalid)}")
 
     async with get_session() as session:
         user = await get_user_by_email(session, iap_user["email"])

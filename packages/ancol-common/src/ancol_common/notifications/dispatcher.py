@@ -81,9 +81,7 @@ async def send_notification(
 
         elif channel == "whatsapp":
             if not recipient.phone_number:
-                logger.debug(
-                    "Skipping WhatsApp for %s — no phone number", recipient.email
-                )
+                logger.debug("Skipping WhatsApp for %s — no phone number", recipient.email)
                 continue
             tasks.append(
                 asyncio.create_task(
