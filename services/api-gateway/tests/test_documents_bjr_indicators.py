@@ -81,6 +81,7 @@ def test_bjr_indicators_returns_list_for_authorized_user(client_with_mocked_grap
     assert response.status_code == 200
 
     body = response.json()
+    assert body["total"] == 1
     assert len(body["indicators"]) == 1
     indicator = body["indicators"][0]
     assert indicator["decision_id"] == str(decision_id)
@@ -111,7 +112,9 @@ def test_bjr_indicators_returns_empty_list_when_graph_backend_off(monkeypatch):
         doc_id = uuid.uuid4()
         response = client.get(f"/api/documents/{doc_id}/bjr-indicators")
         assert response.status_code == 200
-        assert response.json()["indicators"] == []
+        body = response.json()
+        assert body["indicators"] == []
+        assert body["total"] == 0
     finally:
         for dep_fn in auth_deps:
             app.dependency_overrides.pop(dep_fn, None)
@@ -171,6 +174,7 @@ def test_bjr_indicators_serializes_locked_decision(monkeypatch):
         assert response.status_code == 200
 
         body = response.json()
+        assert body["total"] == 1
         assert len(body["indicators"]) == 1
         ind = body["indicators"][0]
         assert ind["is_locked"] is True
@@ -178,6 +182,56 @@ def test_bjr_indicators_serializes_locked_decision(monkeypatch):
         assert ind["status"] == "bjr_locked"
         assert sorted(ind["satisfied_items"]) == ["D-06-QUORUM", "PD-01-DD"]
         assert ind["missing_items"] == []
+    finally:
+        for dep_fn in auth_deps:
+            app.dependency_overrides.pop(dep_fn, None)
+
+
+def test_bjr_indicators_swallows_graph_client_error(monkeypatch):
+    """If the graph client raises, the endpoint degrades to empty list instead of 500."""
+    from api_gateway.main import app
+    from api_gateway.routers import documents
+    from api_gateway.routers.documents import router
+
+    failing_graph = AsyncMock()
+    failing_graph.get_document_indicators = AsyncMock(
+        side_effect=ConnectionError("bolt unreachable"),
+    )
+    monkeypatch.setattr(documents, "_get_graph_client", lambda: failing_graph)
+    auth_deps = _override_all_auth_deps(app, router)
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/api/documents/{uuid.uuid4()}/bjr-indicators")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["indicators"] == []
+        assert body["total"] == 0
+    finally:
+        for dep_fn in auth_deps:
+            app.dependency_overrides.pop(dep_fn, None)
+
+
+def test_bjr_indicators_swallows_not_implemented(monkeypatch):
+    """Spanner stub raises NotImplementedError; endpoint must not bubble as 500."""
+    from api_gateway.main import app
+    from api_gateway.routers import documents
+    from api_gateway.routers.documents import router
+
+    stub_graph = AsyncMock()
+    stub_graph.get_document_indicators = AsyncMock(
+        side_effect=NotImplementedError("Spanner BJR backend not implemented"),
+    )
+    monkeypatch.setattr(documents, "_get_graph_client", lambda: stub_graph)
+    auth_deps = _override_all_auth_deps(app, router)
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/api/documents/{uuid.uuid4()}/bjr-indicators")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["indicators"] == []
+        assert body["total"] == 0
     finally:
         for dep_fn in auth_deps:
             app.dependency_overrides.pop(dep_fn, None)

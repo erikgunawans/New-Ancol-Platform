@@ -9,7 +9,7 @@ from __future__ import annotations
 import importlib.util
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from ancol_common.rag.models import (
@@ -31,11 +31,13 @@ pytestmark = pytest.mark.skipif(
 def _make_client_with_mock_driver(records: list[dict]):
     """Build a Neo4jGraphClient whose driver returns preset records.
 
-    Uses `username=` kwarg (not `user=`) to match the real constructor.
+    Patches `neo4j.AsyncGraphDatabase.driver` during `__init__` so no real
+    connection pool is created. Without this, each test leaks a driver pool
+    (TCP resources + executor threads) that is never closed.
     """
+    import neo4j
     from ancol_common.rag.neo4j_graph import Neo4jGraphClient
 
-    client = Neo4jGraphClient(uri="bolt://dummy", username="neo4j", password="dummy")
     mock_session = AsyncMock()
     mock_result = AsyncMock()
     mock_result.data = AsyncMock(return_value=records)
@@ -44,7 +46,10 @@ def _make_client_with_mock_driver(records: list[dict]):
     mock_session.__aexit__ = AsyncMock(return_value=None)
     mock_driver = MagicMock()
     mock_driver.session = MagicMock(return_value=mock_session)
-    client._driver = mock_driver
+    mock_driver.close = AsyncMock()
+
+    with patch.object(neo4j.AsyncGraphDatabase, "driver", return_value=mock_driver):
+        client = Neo4jGraphClient(uri="bolt://dummy", username="neo4j", password="dummy")
     return client
 
 
@@ -208,15 +213,19 @@ async def test_get_decision_evidence_groups_by_evidence_id() -> None:
 @pytest.mark.asyncio
 async def test_get_document_indicators_returns_empty_on_connection_error() -> None:
     """Degradation contract: graph failures must not propagate to callers."""
+    import neo4j
     from ancol_common.rag.neo4j_graph import Neo4jGraphClient
 
-    client = Neo4jGraphClient(uri="bolt://dummy", username="neo4j", password="dummy")
     failing_session = AsyncMock()
     failing_session.run = AsyncMock(side_effect=ConnectionError("bolt unreachable"))
     failing_session.__aenter__ = AsyncMock(return_value=failing_session)
     failing_session.__aexit__ = AsyncMock(return_value=None)
-    client._driver = MagicMock()
-    client._driver.session = MagicMock(return_value=failing_session)
+    failing_driver = MagicMock()
+    failing_driver.session = MagicMock(return_value=failing_session)
+    failing_driver.close = AsyncMock()
+
+    with patch.object(neo4j.AsyncGraphDatabase, "driver", return_value=failing_driver):
+        client = Neo4jGraphClient(uri="bolt://dummy", username="neo4j", password="dummy")
 
     results = await client.get_document_indicators(doc_id=uuid.uuid4())
     assert results == []

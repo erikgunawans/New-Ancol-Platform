@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from datetime import UTC, date, datetime
@@ -15,8 +16,11 @@ from ancol_common.db.repository import get_document_by_id
 from ancol_common.pubsub.publisher import publish_message
 from ancol_common.rag.graph_client import GraphClient
 from ancol_common.rag.models import DocumentIndicator
+from ancol_common.schemas.bjr import BJRItemCode
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["Documents"], dependencies=[require_mfa_verified()])
 
@@ -221,27 +225,28 @@ class BJRIndicatorResponse(BaseModel):
     readiness_score: float | None
     is_locked: bool
     locked_at: datetime | None
-    satisfied_items: list[str]
-    missing_items: list[str]
+    satisfied_items: list[BJRItemCode]
+    missing_items: list[BJRItemCode]
     origin: str
+
+    @classmethod
+    def from_indicator(cls, ind: DocumentIndicator) -> BJRIndicatorResponse:
+        return cls(
+            decision_id=ind.decision_id,
+            decision_title=ind.decision_title,
+            status=ind.status,
+            readiness_score=ind.readiness_score,
+            is_locked=ind.is_locked,
+            locked_at=ind.locked_at,
+            satisfied_items=ind.satisfied_items,
+            missing_items=ind.missing_items,
+            origin=ind.origin,
+        )
 
 
 class BJRIndicatorsListResponse(BaseModel):
     indicators: list[BJRIndicatorResponse]
-
-
-def _serialize_indicator(ind: DocumentIndicator) -> BJRIndicatorResponse:
-    return BJRIndicatorResponse(
-        decision_id=ind.decision_id,
-        decision_title=ind.decision_title,
-        status=ind.status,
-        readiness_score=ind.readiness_score,
-        is_locked=ind.is_locked,
-        locked_at=ind.locked_at,
-        satisfied_items=[c.value for c in ind.satisfied_items],
-        missing_items=[c.value for c in ind.missing_items],
-        origin=ind.origin,
-    )
+    total: int
 
 
 @router.get(
@@ -260,15 +265,21 @@ async def get_document_bjr_indicators(
     `show_document_indicators`, which proactively enriches document mentions
     with BJR context.
 
-    Degradation: when GRAPH_BACKEND=none, returns an empty list. The chat
-    tool treats "no BJR context available" as a silent no-op.
+    Degradation: returns an empty list when the graph backend is disabled,
+    unimplemented for the configured backend, or errors at query time.
+    Callers treat "no BJR context available" as a silent no-op.
     """
     graph = _get_graph_client()
     if graph is None:
-        return BJRIndicatorsListResponse(indicators=[])
+        return BJRIndicatorsListResponse(indicators=[], total=0)
 
-    indicators = await graph.get_document_indicators(document_id)
+    try:
+        indicators = await graph.get_document_indicators(document_id)
+    except NotImplementedError:
+        return BJRIndicatorsListResponse(indicators=[], total=0)
+    except Exception:
+        logger.exception("get_document_bjr_indicators failed for %s", document_id)
+        return BJRIndicatorsListResponse(indicators=[], total=0)
 
-    return BJRIndicatorsListResponse(
-        indicators=[_serialize_indicator(ind) for ind in indicators],
-    )
+    serialized = [BJRIndicatorResponse.from_indicator(ind) for ind in indicators]
+    return BJRIndicatorsListResponse(indicators=serialized, total=len(serialized))
