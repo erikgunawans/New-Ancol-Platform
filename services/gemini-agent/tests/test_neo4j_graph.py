@@ -6,7 +6,7 @@ import importlib.util
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from gemini_agent.rag.graph_client import ContractNode, RegulationNode
+from ancol_common.rag.graph_client import ContractNode, RegulationNode
 
 # Skip all tests if neo4j driver is not installed
 pytestmark = pytest.mark.skipif(
@@ -20,7 +20,7 @@ def _make_neo4j_client():
     with patch("neo4j.AsyncGraphDatabase") as mock_db:
         mock_driver = MagicMock()
         mock_db.driver.return_value = mock_driver
-        from gemini_agent.rag.neo4j_graph import Neo4jGraphClient
+        from ancol_common.rag.neo4j_graph import Neo4jGraphClient
 
         client = Neo4jGraphClient(uri="bolt://test:7687", username="neo4j", password="test")
         return client, mock_driver
@@ -129,14 +129,14 @@ class TestNeo4jImportGuard:
     """Test conditional import behavior."""
 
     def test_neo4j_available_flag(self):
-        from gemini_agent.rag.neo4j_graph import _NEO4J_AVAILABLE
+        from ancol_common.rag.neo4j_graph import _NEO4J_AVAILABLE
 
         assert _NEO4J_AVAILABLE is True
 
     def test_constructor_requires_driver(self):
         """When _NEO4J_AVAILABLE is False, constructor raises RuntimeError."""
-        with patch("gemini_agent.rag.neo4j_graph._NEO4J_AVAILABLE", False):
-            from gemini_agent.rag.neo4j_graph import Neo4jGraphClient
+        with patch("ancol_common.rag.neo4j_graph._NEO4J_AVAILABLE", False):
+            from ancol_common.rag.neo4j_graph import Neo4jGraphClient
 
             with pytest.raises(RuntimeError, match="neo4j driver is not installed"):
                 Neo4jGraphClient()

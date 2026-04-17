@@ -107,7 +107,7 @@ Agentic AI system on Gemini Enterprise for auditing Board of Directors Minutes o
 8. **Regulation Monitor** (OJK/IDX/industry scraper) — `services/regulation-monitor/`
 
 **API + Frontend:**
-9. **API Gateway** (FastAPI, 54 REST endpoints) — `services/api-gateway/`
+9. **API Gateway** (FastAPI, ~88 REST endpoints incl. BJR `decisions` + `rkab` + `rjpp` + `artifacts` routers) — `services/api-gateway/`
 10. **Frontend** (Next.js 15, React 19, Tailwind) — `web/` — analytics companion (trends, heatmaps, batch progress)
 
 **Gemini Enterprise Interface (primary):**
@@ -118,9 +118,10 @@ Orchestrated by Cloud Workflows (`infra/modules/workflows/workflow.yaml`) with H
 ## Shared Code
 
 All agents share `packages/ancol-common/` which contains:
-- `schemas/` — 9 Pydantic v2 schemas (the contract between agents). **mom.py is the critical schema file.**
-- `db/models.py` — 15 SQLAlchemy ORM models
-- `db/repository.py` — Document state machine (14 states) + batch job CRUD
+- `schemas/` — Pydantic v2 schemas (the contract between agents). **mom.py is the critical schema file.** Also `schemas/{decision,bjr,artifact}.py` for BJR (StrategicDecision, 16 item codes via `BJRItemCode`, 6 artifact types)
+- `db/models.py` — 33 SQLAlchemy ORM models (21 core + 12 BJR tables)
+- `db/repository.py` — Document state machine (14 states) + batch job CRUD + `DECISION_TRANSITIONS` (14 states) + `transition_decision_status()` for BJR
+- `bjr/` — BJR scoring engine: `scorer.py` (pure dual-regime math), `evaluators.py` (16 checklist evaluators), `compute.py` (orchestrator + checklist upsert), `retroactive.py` (MoM → Decision proposer), `matching.py` (shared token-overlap ranker)
 - `gemini/` — Client factory, Vertex AI Search grounding tool, token bucket rate limiter
 - `auth/` — IAP JWT verification, RBAC permission matrix, SSO auth middleware
 - `integrations/` — Board portal + ERP adapters (abstract base)
@@ -139,12 +140,12 @@ All agents share `packages/ancol-common/` which contains:
 
 Always run the full CI pipeline locally before pushing: `ruff check packages/ services/ scripts/ corpus/scripts/` + `/run-tests`. Check all pip/npm deps are installed and no tests are skipped by assumption.
 
-377 unit tests across 9 services (run locally). Use `/run-tests` skill or test individually:
+543 unit tests across 9 services (run locally). Use `/run-tests` skill or test individually:
 - extraction-agent: 25 tests (structural parser, contract extraction, obligation extraction, risk scoring)
 - legal-research-agent: 9 tests (citation validator, endpoints)
 - comparison-agent: 27 tests (5 red flag detectors, severity scoring)
 - reporting-agent: 16 tests (scorecard calc, PDF rendering)
-- api-gateway: 177 tests (health, CORS, RBAC enforcement, per-gate HITL, MFA, WhatsApp notifications, obligation transitions, drafting engine, schemas, contract PDF)
+- api-gateway: 343 tests (health, CORS, RBAC, per-gate HITL, MFA, WhatsApp, obligation transitions, drafting, schemas, contract PDF, BJR: rbac/schemas/state-machine/routers/scorer/decisions/retroactive/evaluators/compute)
 - batch-engine: 18 tests (rate limiter, status transitions, schemas, health)
 - email-ingest: 24 tests (filename detection, MoM type, date extraction, content type, health)
 - regulation-monitor: 20 tests (sources, relevance filter, date parsing, endpoints)
@@ -153,7 +154,7 @@ Always run the full CI pipeline locally before pushing: `ruff check packages/ se
 
 ## Current State
 
-**ALL PHASES COMPLETE + MFA + WHATSAPP + NEO4J.** v0.3.0.0. ~420 files, 377 tests locally (384 total incl. CI-only). RBAC enforced on all 54 API endpoints with per-gate HITL role enforcement. MFA (TOTP) with Fernet encryption, backup codes, JWT session tokens. WhatsApp notification delivery with unified dispatcher. Neo4j AuraDS graph client (all 7 methods). Security reviewed. Check `PROGRESS.md` for full session history, `PRODUCT-STATUS.md` for product evolution.
+**v0.4.0.0 — BJR orchestration layer shipped.** ~460 files, 543 tests locally across 9 services (25+9+27+16+343+18+24+20+61), 33 ORM tables, 88 API routes. MoM + CLM + MFA + WhatsApp + Neo4j + BJR (Business Judgment Rule) decision-level defensibility with dual-regime scoring + Gate 5 dual-approval. RBAC on all endpoints with per-gate HITL. Security reviewed + full /pre-ship pipeline + 6-agent pr-review-toolkit. Check `PROGRESS.md` for session history, `PRODUCT-STATUS.md` for product evolution.
 
 ## Automations
 
@@ -163,7 +164,7 @@ Hooks, skills, and agents are configured in `.claude/`:
 - **Skills**: `/run-tests` (full 9-service test suite), `/new-endpoint` (scaffold with RBAC + MFA)
 - **Agents**: `security-reviewer` (auth, crypto, data sovereignty audit)
 - **MCP Servers**: `context7` (live library docs), `github` (issues, PRs, CI)
-- **Knowledge Graph**: `graphify-out/graph.json` (2,134 nodes, 5,228 edges). Run `/graphify query "<question>"` to traverse. Run `/graphify --update` after code changes.
+- **Knowledge Graph**: `graphify-out/graph.json` (2,924 nodes, 8,096 edges, 139 communities). Run `/graphify query "<question>"` to traverse. Run `/graphify --update` after code changes. See `docs/Graph-Question-List.md` for 55 curated high-impact questions across ARCH / SEC / PERF / ONBOARD / RISK / PRODUCT / EVOLUTION / BJR.
 
 ## Environment Variables (new features)
 
@@ -181,6 +182,10 @@ MFA, WhatsApp, and Neo4j require these env vars (all optional, features degrade 
 | `NEO4J_URI` | Neo4j connection URI | `bolt://localhost:7687` |
 | `NEO4J_USER` | Neo4j username | `neo4j` |
 | `NEO4J_PASSWORD` | Neo4j password | (empty) |
+| `BJR_ENABLED` | Master kill switch for BJR orchestration layer | `true` |
+| `BJR_GATE5_THRESHOLD` | Minimum readiness score to unlock Gate 5 | `85.0` |
+| `BJR_GATE5_SLA_DAYS` | Days before Gate 5 SLA breach | `5` |
+| `BJR_MATERIALITY_THRESHOLD_IDR` | Decision value (IDR) triggering OJK disclosure | `10000000000.0` |
 
 ## Gotchas
 
@@ -206,6 +211,18 @@ MFA, WhatsApp, and Neo4j require these env vars (all optional, features degrade 
 - **VALID_CHANNELS constant lives in dispatcher**: `notifications/dispatcher.py` owns `VALID_CHANNELS` and `DEFAULT_CHANNELS`. Import from there, don't redefine.
 - **UserResponse.from_user() class method**: Use `UserResponse.from_user(u)` instead of manually constructing UserResponse fields. Defined in `routers/users.py`.
 - **Neo4j is fully implemented**: All 7 `GraphClient` methods have Cypher implementations. Switch with `GRAPH_BACKEND=neo4j` + `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` env vars. Driver needs explicit `close()` call.
+
+### BJR-specific gotchas (load-bearing — don't break these)
+
+- **BJR dual-regime scoring is `min(corporate, regional)`**: The #1 strategic risk from the matrix — a decision passing corporate (UU PT + OJK) but failing BUMD (PP + Pergub DKI) gets NO protection. Formula in `bjr/scorer.py` `compute_scores`. Never change to `max()` or an average.
+- **`BJRItemCode` 16 values are a stable contract**: Used by agent output JSON, UI checklist, Decision Passport PDF, audit_trail. Renaming any value breaks all four. Enum in `schemas/bjr.py`.
+- **CRITICAL items weight 2×**: `PD-03-RKAB`, `PD-05-COI`, `D-06-QUORUM`, `D-11-DISCLOSE`. Missing any disproportionately tanks the score. Gate 5 unlock also requires no CRITICAL in `flagged` state.
+- **Gate 5 needs BOTH unique index AND `SELECT FOR UPDATE`**: Race fix = unique index on `bjr_gate5_decisions.decision_id` + `_ensure_gate5_row` uses `.with_for_update()` + `IntegrityError` fallback. Removing either brings back the duplicate-row race under concurrent half-approvals.
+- **Gate 5 finalization: transition FIRST, then set approved**: `_maybe_finalize_gate5` in `routers/decisions.py` calls `transition_decision_status(BJR_LOCKED)` BEFORE setting `gate5.final_decision=approved`. Reversing the order reintroduces split-brain (Gate 5 approved but decision never locked).
+- **`_extract_bool_field` distinguishes missing from False**: For D-06-QUORUM and D-07-SIGNED. Missing `quorum_met`/`signatures_complete` → NOT_STARTED with "re-extract" remediation (data gap). Explicit `False` → FLAGGED (real violation). Never collapse these states.
+- **`compute_bjr` wraps each evaluator in try/except**: One failing evaluator produces a synthetic FLAGGED via `_EVALUATOR_METADATA` lookup; other 15 still run. Adding a 17th evaluator requires adding it to `_EVALUATOR_METADATA` in `bjr/compute.py` — drift-guard test in `test_bjr_compute.py::test_every_evaluator_has_metadata` enforces 1:1 mapping.
+- **PD-05-COI requires 4-char minimum RPT names**: Short entity names like "PT"/"CV" would false-positive every attendee. Malformed `attendees` JSONB (non-list/dict shape) returns FLAGGED with "malformed" remediation — NEVER SATISFIED (that was a pre-merge silent-failure bug).
+- **BJR engine is in-process, not a separate service**: Lives in `packages/ancol-common/bjr/`. Plan Phase 6.6 extracts as `services/bjr-agent/` Cloud Run service. Current caller: only `services/api-gateway/src/api_gateway/routers/decisions.py`.
 
 ## Plan Verification Protocol
 

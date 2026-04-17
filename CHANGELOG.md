@@ -2,6 +2,49 @@
 
 All notable changes to the Ancol MoM Compliance System will be documented in this file.
 
+## [0.4.1.0] - 2026-04-18
+
+### Added — Phase 6.4a first-wave: BJR chat-read surface + graph data layer (partial)
+
+First slice of the Gemini Enterprise primary-interface pivot for BJR. Ships
+the shared RAG package relocation, BJR-specific graph data models, full
+Neo4j Cypher implementation of 6 new graph methods, and the first API
+surface (`GET /api/documents/{id}/bjr-indicators`) that powers the chat tool
+`show_document_indicators`. 6 of 14 Phase 6.4a tasks complete; chat-tool
+handlers (Tasks 7–11), Spanner parity (Task 5), and graph backfill script
+(Task 12) land in follow-up PRs.
+
+- **RAG package promoted to shared scope:** moved from `services/gemini-agent/src/gemini_agent/rag/` to `packages/ancol-common/src/ancol_common/rag/` so the API Gateway can consume `GraphClient` without cross-service imports. `gemini_agent.rag` is now a backward-compat shim.
+- **6 new BJR graph models** in `ancol_common/rag/models.py`: `DecisionNode`, `EvidenceNode`, `ChecklistItemNode`, `DocumentIndicator`, `EvidenceSummary`, `Gate5Half`, `ApprovedByEdge`. Frozen dataclasses, zero runtime deps.
+- **GraphClient ABC extended with 6 BJR methods:** `upsert_decision_node`, `upsert_supported_by_edge`, `upsert_satisfies_item_edge`, `upsert_approved_by_edge`, `get_document_indicators`, `get_decision_evidence`. Spanner implementations raise `NotImplementedError` (Task 5); Neo4j is fully implemented.
+- **Neo4j Cypher implementation** of all 6 methods with idempotent MERGE semantics, per-decision edge keying via edge properties, and graceful degradation (reads return `[]`, writes log + swallow).
+- **New read-only endpoint** `GET /api/documents/{document_id}/bjr-indicators` returns all BJR decisions a document supports, per-decision readiness score, lock state, and satisfied/missing 16-item checklist codes. Gated by new `bjr:read` RBAC permission (8 roles). Degrades to empty list on backend-down / backend-unimplemented / backend-error — chat tool treats as silent no-op.
+- **Agent Builder region-verification runbook** at `docs/RUNBOOK-agent-builder-region-verification.md` — blocker gate for Phase 6.4b (confirms `asia-southeast2` pin before chat tool wiring).
+
+### Changed — Correctness fixes from review pipeline
+
+Fixes caught by `/simplify`, `/review`, and `/codex` cross-model review passes:
+
+- **`Evidence` MERGE now keyed by id only.** Prior compound key `MERGE (ev:Evidence {id, type})` would create a duplicate Evidence node if the same id was re-upserted with a different type. Now `MERGE (ev:Evidence {id}) SET ev.type = $type` (correctness).
+- **`APPROVED_BY` edge now keyed by `(decision_id, half)`, not `(decision_id, user_id, half)`.** Prior MERGE pattern meant re-approval by a DIFFERENT authorized user created a duplicate edge, violating the one-edge-per-half invariant. Now OPTIONAL MATCH + DELETE + `WITH DISTINCT` + CREATE, so re-approval replaces the prior edge exactly once regardless of how many stale edges existed.
+- **Graph client instantiation is now failure-tolerant.** If `SpannerGraphClient()` / `Neo4jGraphClient()` raises during construction (missing deps, bad ADC credentials), `_get_graph_client()` logs and returns `None`; endpoint returns empty list instead of 500.
+- **BJR endpoint wraps graph call in try/except** to catch `NotImplementedError` (Spanner stub) and generic exceptions at query time, matching the documented degradation contract.
+- **Typed API response** — `BJRIndicatorResponse.satisfied_items` / `missing_items` now typed as `list[BJRItemCode]` so OpenAPI schema documents the 16 stable enum values. JSON wire format unchanged.
+- **`BJRIndicatorsListResponse` now carries `total: int`** matching every other `*ListResponse` convention in the codebase.
+- **Test fixture no longer leaks a real Neo4j driver.** `_make_client_with_mock_driver` now patches `neo4j.AsyncGraphDatabase.driver` during `__init__` so tests don't instantiate real connection pools.
+- **Dropped unused `doc_type` parameter** from `get_document_indicators` across ABC + Neo4j + Spanner stub + call site + tests (YAGNI — Cypher never matched on it).
+- **Stripped phase-tracking comments** across `rag/graph_client.py`, `neo4j_graph.py`, `spanner_graph.py` per repo convention.
+
+### Tests
+
++31 new tests across three suites. Total: 19 `ancol-common` + 351 `api-gateway` + 61 `gemini-agent` = **431 passing** (from 377 + 61 at v0.4.0.0).
+
+- `packages/ancol-common/tests/test_graph_client_bjr.py` — 9 tests covering the 6 Neo4j BJR methods + degradation + APPROVED_BY re-key invariant
+- `packages/ancol-common/tests/test_rag_models.py` — dataclass shape tests
+- `packages/ancol-common/tests/test_graph_client_interface.py` — ABC signature drift guard
+- `services/api-gateway/tests/test_documents_bjr_indicators.py` — 7 endpoint tests: happy path, empty list, unauthenticated, invalid UUID, locked decision serialization, connection error degradation, NotImplementedError degradation
+- `services/api-gateway/tests/test_bjr_rbac.py` — updated drift-guard (23 → 24 BJR permission keys)
+
 ## [0.4.0.0] - 2026-04-17
 
 ### Added — BJR (Business Judgment Rule) orchestration layer

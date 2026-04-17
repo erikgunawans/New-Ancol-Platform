@@ -191,6 +191,16 @@ ROLE_PERMISSIONS: dict[str, set[UserRole]] = {
         UserRole.INTERNAL_AUDITOR,
         UserRole.ADMIN,
     },
+    "bjr:read": {
+        UserRole.BUSINESS_DEV,
+        UserRole.CORP_SECRETARY,
+        UserRole.INTERNAL_AUDITOR,
+        UserRole.LEGAL_COMPLIANCE,
+        UserRole.KOMISARIS,
+        UserRole.DEWAN_PENGAWAS,
+        UserRole.DIREKSI,
+        UserRole.ADMIN,
+    },
     "bjr:gate_5_komisaris": {UserRole.KOMISARIS, UserRole.ADMIN},
     "bjr:gate_5_legal": {UserRole.LEGAL_COMPLIANCE, UserRole.ADMIN},
     # ── BJR: RKAB / RJPP registries ──

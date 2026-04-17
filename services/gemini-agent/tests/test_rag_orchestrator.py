@@ -6,7 +6,7 @@ import importlib.util
 from unittest.mock import patch
 
 import pytest
-from gemini_agent.rag.graph_client import (
+from ancol_common.rag.graph_client import (
     AmendmentEdge,
     ContractNode,
     GraphClient,
@@ -88,6 +88,27 @@ class MockGraphClient(GraphClient):
                     status="active",
                 )
             ]
+        return []
+
+    # BJR no-op stubs so the ABC stays instantiable; legacy tests don't exercise these.
+    async def upsert_decision_node(self, decision) -> None:
+        return None
+
+    async def upsert_supported_by_edge(self, decision_id, evidence, linked_at, linked_by) -> None:
+        return None
+
+    async def upsert_satisfies_item_edge(
+        self, evidence_id, item_code, decision_id, evaluator_status
+    ) -> None:
+        return None
+
+    async def upsert_approved_by_edge(self, decision_id, user_id, half, approved_at) -> None:
+        return None
+
+    async def get_document_indicators(self, doc_id, doc_type) -> list:
+        return []
+
+    async def get_decision_evidence(self, decision_id) -> list:
         return []
 
 

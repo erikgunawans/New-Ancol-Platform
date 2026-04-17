@@ -8,16 +8,26 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
+from datetime import datetime
 
 from google.cloud import spanner
 
-from .graph_client import (
+from ancol_common.rag.graph_client import (
     AmendmentEdge,
     ContractNode,
     CrossReference,
     GraphClient,
     RegulationNode,
 )
+from ancol_common.rag.models import (
+    DecisionNode,
+    DocumentIndicator,
+    EvidenceNode,
+    EvidenceSummary,
+    Gate5Half,
+)
+from ancol_common.schemas.bjr import BJRItemCode
 
 logger = logging.getLogger(__name__)
 
@@ -239,3 +249,47 @@ class SpannerGraphClient(GraphClient):
             )
             for row in rows
         ]
+
+    # ── BJR stubs — Spanner backend not implemented yet ──
+
+    async def upsert_decision_node(self, decision: DecisionNode) -> None:
+        raise NotImplementedError("Spanner BJR backend not implemented")
+
+    async def upsert_supported_by_edge(
+        self,
+        decision_id: uuid.UUID,
+        evidence: EvidenceNode,
+        linked_at: datetime,
+        linked_by: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError("Spanner BJR backend not implemented")
+
+    async def upsert_satisfies_item_edge(
+        self,
+        evidence_id: uuid.UUID,
+        item_code: BJRItemCode,
+        decision_id: uuid.UUID,
+        evaluator_status: str,
+    ) -> None:
+        raise NotImplementedError("Spanner BJR backend not implemented")
+
+    async def upsert_approved_by_edge(
+        self,
+        decision_id: uuid.UUID,
+        user_id: uuid.UUID,
+        half: Gate5Half,
+        approved_at: datetime,
+    ) -> None:
+        raise NotImplementedError("Spanner BJR backend not implemented")
+
+    async def get_document_indicators(
+        self,
+        doc_id: uuid.UUID,
+    ) -> list[DocumentIndicator]:
+        raise NotImplementedError("Spanner BJR backend not implemented")
+
+    async def get_decision_evidence(
+        self,
+        decision_id: uuid.UUID,
+    ) -> list[EvidenceSummary]:
+        raise NotImplementedError("Spanner BJR backend not implemented")

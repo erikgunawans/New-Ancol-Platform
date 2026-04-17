@@ -1,10 +1,11 @@
 # Ancol MoM Compliance System — Progress Tracker
 
-## Current State (as of 2026-04-17)
+## Current State (as of 2026-04-18)
 
-**ALL PHASES COMPLETE + MFA + WHATSAPP + NEO4J GRAPH.** v0.3.0.0. ~420 source files, 377 unit tests passing across 9 services (25+9+27+16+177+18+24+20+61), 21 ORM tables. MoM compliance + CLM + MFA (TOTP) + WhatsApp notifications + Neo4j AuraDS graph client. RBAC enforced on all 54 API endpoints with per-gate HITL role enforcement. Code reviewed with /simplify + /review (security hardened: MFA token identity binding, constant-time backup codes, RBAC on all /me/* endpoints).
+**v0.4.1.0 IN PR #8 — Phase 6.4a partial (6 of 14 tasks).** 14 commits ahead of main on `feat/bjr-gemini-primary-phase-6-4a`. All 4 CI checks pass (lint-python, lint-web, test-python, terraform-validate), mergeable. **431 tests passing** (+54 over v0.4.0.0): 19 `ancol-common` + 351 `api-gateway` + 61 `gemini-agent`. First API surface backing the Gemini Enterprise chat-first BJR interface shipped: `GET /api/documents/{id}/bjr-indicators` + new `bjr:read` permission + 6 BJR graph methods on the Neo4j backend. Full /pre-ship pipeline (/simplify + /review + /codex 2×) caught + fixed 11 real bugs across this partial phase (Evidence MERGE compound-key bug, APPROVED_BY re-key, graph-client init failure guard, WITH DISTINCT on edge cleanup, test driver leak, etc.). **v0.4.0.0 remains live on main** — 543 tests, 33 ORM tables, 88 API routes. MoM + CLM + MFA + WhatsApp + Neo4j + BJR.
 
-**Repository:** https://github.com/erikgunawans/New-Ancol-Platform (standalone repo)
+**Repository:** https://github.com/erikgunawans/New-Ancol-Platform
+**Active PR:** [#8 — Phase 6.4a partial](https://github.com/erikgunawans/New-Ancol-Platform/pull/8)
 
 | Phase | Weeks | Status | Files | Tests |
 |-------|-------|--------|-------|-------|
@@ -22,8 +23,141 @@
 | **WhatsApp Notifications** | — | **COMPLETE** | +3 new, +8 mod | +27 |
 | **Neo4j AuraDS Graph** | — | **COMPLETE** | +1 new, +2 mod | +13 |
 | **Code Review + Security** | — | **COMPLETE** | 6 security fixes | 0 new |
+| **BJR Phase 6.1-6.3 (v0.4.0.0)** | — | **COMPLETE** | +32 new, +19 mod | +127 |
+| **BJR Evaluator Tests (PR #7)** | — | **COMPLETE** | +3 test files | +39 |
+| **Phase 6.4a — Tasks 1-4, 6, 13 (v0.4.1.0, PR #8)** | — | **IN REVIEW** | +21 new, +9 mod | +54 |
+| **Phase 6.4a — Tasks 5, 7-12, 14** | — | **PENDING** | (next branch) | +~48 expected |
 
-**System is deployment-ready with Gemini Enterprise as primary interface.** MoM compliance + CLM + MFA + WhatsApp + Neo4j. Hybrid RAG with Spanner Graph or Neo4j AuraDS (swappable via `GRAPH_BACKEND` env var). 54 API endpoints, all RBAC-enforced. Security-reviewed.
+**Phase 6.4a first-wave shipped in PR #8 (6 of 14 tasks):**
+- **Task 1** `05eef81` — rag/ relocated to `packages/ancol-common/` (shared access from api-gateway)
+- **Task 2** `830fa8d` — 7 BJR graph data models (`DecisionNode`, `EvidenceNode`, `ChecklistItemNode`, `DocumentIndicator`, `EvidenceSummary`, `Gate5Half`, `ApprovedByEdge`)
+- **Task 3** `94ed8d0` — `GraphClient` ABC extended with 6 BJR methods (upsert decision/evidence/satisfies/approved + read indicators/evidence)
+- **Task 4** `0b503c2` — full Neo4jGraphClient Cypher implementation with idempotent MERGE + graceful degradation
+- **Task 6** `e8129e0` — `GET /api/documents/{id}/bjr-indicators` endpoint + `bjr:read` permission (8 roles) + module-level graph client factory
+- **Task 13** `67f6baa` — Agent Builder region-verification runbook (blocker gate for 6.4b)
+
+**Pre-ship pipeline fixes on PR #8:**
+- `9783a6a` /simplify: strip phase comments, drop `doc_type` YAGNI, fix Evidence MERGE compound-key bug
+- `2335aa9` /review: endpoint try/except, test driver leak, `list[BJRItemCode]` typing, `total` envelope
+- `96e5349` + `ab814f4` /codex (2 passes): graph-client init failure guard, APPROVED_BY re-key to (decision, half), `WITH DISTINCT` after DELETE
+
+## What To Do Next
+
+**Immediate:** **merge PR #8** (all CI green, mergeable). After merge: delete `feat/bjr-gemini-primary-phase-6-4a`, cut new branch for the next wave.
+
+**Per plan's own de-risk note, after Task 6 the correct next task is Task 7 (not Task 5).** Tasks 7-10 (chat tool handlers) should land before Task 5 (Spanner parity) to de-risk the consumer layer before backend duplication.
+
+**Remaining Phase 6.4a tasks** (plan: [docs/superpowers/plans/2026-04-17-bjr-gemini-primary-phase-6-4a.md](docs/superpowers/plans/2026-04-17-bjr-gemini-primary-phase-6-4a.md)):
+- **Task 7 (NEXT)** — `bjr_decisions.py` chat tool handlers (read-only). Plan lines 1999-2404. Consumes Task 6's endpoint.
+- **Task 8** — `bjr_readiness.py` chat tool handlers. Plan lines 2404-2690.
+- **Task 9** — `bjr_evidence.py` chat tool handlers. Plan lines 2690-3025.
+- **Task 10** — `bjr_passport.py` chat tool handler. Plan lines 3025-3197.
+- **Task 11** — Dispatcher + RBAC wiring in `main.py`. Plan lines 3197-3457.
+- **Task 12** — Idempotent graph backfill script. Plan lines 3457-3875.
+- **Task 5 (de-risked)** — Spanner parity for 6 BJR methods. Plan lines 1246-1691. Only needed if Spanner becomes the primary graph backend; Neo4j is the dev/staging default.
+- **Task 14** — End-of-phase regression + checkpoint.
+
+**Non-blocking concerns from /pre-ship (flag when resuming):**
+- **IDOR on `/api/documents/{id}/bjr-indicators`** — endpoint checks only global `bjr:read`, no per-document ownership. Needs corp_sec sign-off before Phase 6.4b. The chat UX enriches ALL document mentions, so per-doc filtering conflicts with the primary-interface spec. Options: (a) accept broad read with documented rationale, (b) add per-doc ACL, (c) filter by decision-level access.
+- **`GRAPH_BACKEND=spanner` default** means the endpoint returns empty on fresh deployments. Intentional per CLAUDE.md env table; flip to `neo4j` default in Phase 6.4b rollout.
+- **Factory duplication** between `documents.py` and `gemini_agent/rag/orchestrator.py` — consolidate to `packages/ancol-common/src/ancol_common/rag/factory.py` when Tasks 7-10 force the issue.
+- **Agent Builder region pin** — execute the runbook at `docs/RUNBOOK-agent-builder-region-verification.md` via GCP support ticket before Phase 6.4b chat mutations.
+
+**Superseded plans:** Original Phase 6.4 web-UI-first plan is superseded by the chat-first design. The decision dashboard, proactive wizard, and retroactive bundler move into chat tools. Web surface shrinks to 3 single-screen step-up pages (Gate 5 komisaris, Gate 5 legal, material disclosure) + 1 MFA enrollment page. Design rationale in [docs/superpowers/specs/2026-04-17-bjr-gemini-enterprise-primary-design.md](docs/superpowers/specs/2026-04-17-bjr-gemini-enterprise-primary-design.md).
+
+**Remaining test coverage gaps** (documented in PR #7 body — can run in parallel with 6.4):
+- Gate 5 dual-approval DB flow (~15 tests; needs transaction-aware fixture for row-lock + state machine)
+- Retroactive bundler DB path (~8 tests)
+- RKAB `/match` endpoint + `rank_by_token_overlap` (~5 tests)
+- 12 non-critical evaluator direct branch coverage (~25 tests)
+
+**Architectural polish (from 6-agent review + PR #8 specialists, deferred to dedicated PRs):**
+- 6× artifact CRUD factory (~300 LOC reduction)
+- Type-design improvements: `Literal[Gate5FinalDecision.APPROVED, REJECTED]`, typed `EvidenceRef` BaseModel, `StrategicDecisionResponse` locked-state validator
+- `transition_decision_status` tristate return
+- Router-local schema dedup vs shared `ancol_common/schemas/`
+- Promote `_get_graph_client()` factory to `ancol_common/rag/factory.py` + `@lru_cache` + `Depends()` pattern
+- Move `Gate5Half` from `rag/models.py` to `schemas/bjr.py` (domain vocabulary lives in schemas)
+- Drop unused `ApprovedByEdge` dataclass or use it as `upsert_approved_by_edge` parameter
+- `state_emoji` threshold should read `BJR_GATE5_THRESHOLD` config instead of hardcoded 85.0
+
+**Phase 6.5-6.6** (deferred in CHANGELOG):
+- Pub/Sub wiring: `bjr-evidence-changed`, `bjr-locked` topics
+- Standalone `services/bjr-agent/` Cloud Run service (wraps `ancol_common.bjr` module)
+- Historical migration for 500+ existing MoMs into retroactive Decisions
+
+---
+
+## Checkpoint 2026-04-18 (Phase 6.4a first-wave shipped in PR #8)
+
+- **Session:** `/checkpoint resume` → verify plan drift → commit Task 6 → /pre-ship (/simplify + /review + /codex 2×) → /ship → PR #8 green.
+- **Branch:** `feat/bjr-gemini-primary-phase-6-4a` (14 commits ahead of main, pushed)
+- **PR:** [#8 — feat(rag+api): Phase 6.4a partial — BJR chat-read surface + graph data layer (v0.4.1.0)](https://github.com/erikgunawans/New-Ancol-Platform/pull/8). All 4 CI checks pass, mergeable.
+- **Version:** `0.4.0.0` → `0.4.1.0` (PATCH — partial phase, full chat-first interface lands across 6.4a + 6.4b + 6.4c).
+- **Tasks shipped this PR (6 of 14):**
+  - Task 1: rag/ relocated to `packages/ancol-common/` (shim at old path for backward compat)
+  - Task 2: 7 BJR graph data models in `ancol_common/rag/models.py`
+  - Task 3: `GraphClient` ABC extended with 6 BJR methods
+  - Task 4: Neo4jGraphClient full Cypher implementation (idempotent MERGE, graceful degradation)
+  - Task 6: `GET /api/documents/{id}/bjr-indicators` endpoint + `bjr:read` RBAC permission (8 roles)
+  - Task 13: Agent Builder region verification runbook (out-of-order; blocker gate for 6.4b)
+- **Pre-ship pipeline caught 11 real issues:**
+  - /simplify: Evidence MERGE compound-key bug (would duplicate on type change), `doc_type` dead param, phase-tracking comments
+  - /review: endpoint missing try/except (Spanner NotImplementedError → 500 bug), Neo4j test driver leak in fixture, stringly-typed response fields, missing `total` field
+  - /codex #1: `_get_graph_client()` lacked try/except around client instantiation (missing deps → 500), APPROVED_BY edge keyed by (decision, user, half) instead of (decision, half) → duplicate edges on re-approval by different user
+  - /codex #2: OPTIONAL MATCH on APPROVED_BY cleanup returns N rows so CREATE ran N times → recreated duplicates. Fixed with `WITH DISTINCT d, u`.
+- **Tests:** 377 → 431 (+54 new): 8 Neo4j BJR tests + 3 dataclass tests + 2 ABC signature tests + 7 endpoint integration tests + 1 APPROVED_BY re-key invariant test + 1 drift-guard bump (23 → 24 BJR perms) + 32 in earlier tasks.
+- **Files changed:** 21 new + 9 modified. 6500 insertions on branch (2500 code + 4000 docs: design spec + 14-task plan file).
+- **Design spec:** `docs/superpowers/specs/2026-04-17-bjr-gemini-enterprise-primary-design.md`
+- **Plan file:** `docs/superpowers/plans/2026-04-17-bjr-gemini-primary-phase-6-4a.md` (4094 lines, 14 tasks)
+- **Runbook:** `docs/RUNBOOK-agent-builder-region-verification.md` (Task 13 deliverable)
+- **Next:** merge PR #8 → Task 7 (`bjr_decisions.py` chat tool handlers, plan lines 1999-2404). Per plan's de-risk note, Tasks 7-10 run BEFORE Task 5 (Spanner parity).
+
+---
+
+## Checkpoint 2026-04-17 evening (Phase 6.4a — BJR Gemini-primary pivot started)
+
+- **Session:** `/gsd:progress` → brainstorm about making Gemini Enterprise the primary BJR interface → spec written → spec verification protocol (fixed 8 path/name drifts) → 14-task implementation plan → Task 1 of 14 shipped.
+- **Branch:** `feat/bjr-gemini-primary-phase-6-4a` (not yet pushed)
+- **Design decision:** Chat-first with step-up. 95% of BJR flows in Gemini Enterprise chat; 5% (Gate 5 approval, material disclosure filing, MFA enrollment) on minimal 1-screen web pages reached via WhatsApp push link. Preserves existing MFA-bound-to-IAP invariant; matches Indonesian banking pattern (Klik BCA, BRImo); avoids first-BUMD regulatory defense posture.
+- **Design spec:** `docs/superpowers/specs/2026-04-17-bjr-gemini-enterprise-primary-design.md` (985 lines) — supersedes original Phase 6.4 web-UI-first plan.
+- **Implementation plan:** `docs/superpowers/plans/2026-04-17-bjr-gemini-primary-phase-6-4a.md` (4094 lines, 14 tasks, ~90 TDD steps). Phase 6.4 restructured into 6.4a (chat read-only + graph), 6.4b (chat mutations), 6.4c (step-up web). Total 8-10 weeks to production.
+- **Done:**
+  - Design spec committed (commit `8f4d579`) + correctness-pass fixes (commit `0354bea`) — 8 path/name drifts found via grep against live codebase
+  - Phase 6.4a plan committed (commit `80e6013`)
+  - **Task 1 of 14 shipped (commit `05eef81`):** relocated `rag/` package from `services/gemini-agent/src/gemini_agent/rag/` to `packages/ancol-common/src/ancol_common/rag/`. Prerequisite for API Gateway to import `GraphClient` for the new `/api/documents/{id}/bjr-indicators` endpoint. gemini-agent's `rag/__init__.py` became a backward-compat shim. 3 files moved (graph_client.py, spanner_graph.py, neo4j_graph.py), 2 modified (orchestrator.py, rag/__init__.py shim), 3 test files updated (test_graph_client.py, test_rag_orchestrator.py, test_neo4j_graph.py incl. `_NEO4J_AVAILABLE` patch target). Zero behavior change; 61 gemini-agent tests pass unchanged.
+- **Open questions carried to next session:**
+  - Vertex AI Agent Builder region pinning (asia-southeast2) — must verify in week 1 of Phase 6.4a; blocker gate before 6.4b. Runbook: Task 13 of plan (not yet created).
+  - Subagent-driven execution hit a plan-mode inheritance issue (subagents pause with "plan mode active" reminders). Workaround for Task 1 was inline execution. Decide before Task 2: continue inline vs. retry subagents vs. pause.
+- **Tests:** 61 gemini-agent tests (unchanged; Phase 6.4a adds ~48 new tests over its full 14 tasks).
+- **Next:** Task 2 of 14 — add BJR graph data models (`packages/ancol-common/src/ancol_common/rag/models.py`) with `DecisionNode`, `EvidenceNode`, `ChecklistItemNode`, `DocumentIndicator`, `EvidenceSummary`, `Gate5Half`. Plan file has exact TDD steps.
+
+---
+
+## Checkpoint 2026-04-17 (BJR v0.4.0.0 shipped + test coverage follow-up)
+
+- **Session:** BJR brainstorm → plan → 3-phase implementation → /pre-ship (/simplify + /review + /codex) → /ship → /pr-review-toolkit → follow-up test PR. All merged to main.
+- **Branch:** `main` (clean, no uncommitted BJR work)
+- **PRs merged:**
+  - **#6** `feat: BJR (Business Judgment Rule) orchestration layer — v0.4.0.0` (commit `e42d56b`)
+  - **#7** `test: unit coverage for BJR evaluators + compute orchestrator (+39 tests)` (commit `b6eccd4`)
+- **Done:**
+  - Full BJR orchestration layer: StrategicDecision root entity + 14-state machine + 16-item proof checklist across 3 phases (pre/decision/post) + dual-regime scoring (`min(corp, regional)`) with CRITICAL items at 2× weight
+  - 12 new DB tables, 2 new user roles (dewan_pengawas + direksi), 23 new RBAC permissions, 26 new API endpoints
+  - 23 new regulations seeded with `regulatory_regime` + `layer` metadata: all Pergub DKI + PP 54/2017 + PP 23/2022 + UU 1/2025 + 2 POJK
+  - Gate 5 dual-approval flow (Komisaris + Legal, MFA-required, row-locked, 5-day SLA)
+  - BJR Compliance Agent in-process module (`packages/ancol-common/bjr/`) — extractable as separate Cloud Run service in Phase 6.6
+  - 16 evaluators: 12 fully auto, 3 AI-assist heuristic, 1 manual
+  - 127 tests in PR #6 (schemas, scorer, state machine, RBAC, routers, retroactive)
+  - 39 tests in PR #7 (evaluator unit tests for 4 CRITICAL items + compute orchestrator invariants + regression tests for silent-failure fixes)
+  - 14 real bugs caught and fixed pre-merge across /simplify + /review + /codex + pr-review-toolkit: Gate 5 race, state machine bypass, split-brain finalization, 3 silent-failure bugs in evaluators, inactive RJPP acceptance, IntegrityError 500 misclass, 0.0 score nullification, bare exception catch, malformed-attendee false pass, missing-vs-False conflation
+  - Shared `_bjr_fixtures.py` AsyncMock test helpers (reusable for future BJR test PRs)
+- **Version:** `0.2.0.0` → `0.4.0.0` (skipped 0.3 to realign — prior MFA/WhatsApp/Neo4j work shipped as v0.3.0.0 in PROGRESS.md but never bumped VERSION file)
+- **Files changed:** PR #6 = 32 files (+6306), PR #7 = 3 files (+978). Net: 35 new + ~19 modified
+- **Tests:** 377 → 543 (+166 across both PRs). Zero regressions.
+- **Design spec:** `docs/superpowers/specs/2026-04-17-bjr-integration-design.md`
+- **Source doc (BJR matrix):** `docs/Matriks_Regulasi_GCG_BJR_Ancol_2026.docx`
+- **Next:** Phase 6.4 frontend UI + Decision Passport PDF is highest user-facing value. Deferred test gaps (Gate 5 flow, retroactive DB, RKAB match, non-critical evaluator branches) can run in parallel. See "What To Do Next" above for full list.
 
 ---
 

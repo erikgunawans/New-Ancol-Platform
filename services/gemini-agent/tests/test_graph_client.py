@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from gemini_agent.rag.graph_client import (
+from ancol_common.rag.graph_client import (
     AmendmentEdge,
     ClauseNode,
     CrossReference,

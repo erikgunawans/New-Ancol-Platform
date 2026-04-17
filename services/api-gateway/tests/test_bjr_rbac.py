@@ -23,7 +23,7 @@ class TestBJRNewRoles:
 
 
 class TestBJRPermissionsRegistered:
-    """Verify all 23 BJR permission keys exist in ROLE_PERMISSIONS."""
+    """Verify all 24 BJR permission keys exist in ROLE_PERMISSIONS."""
 
     BJR_PERMS: ClassVar[list[str]] = [
         "decisions:create",
@@ -33,6 +33,7 @@ class TestBJRPermissionsRegistered:
         "decisions:passport",
         "decisions:retroactive_bundle",
         "bjr:compute",
+        "bjr:read",
         "bjr:gate_5_komisaris",
         "bjr:gate_5_legal",
         "rkab:view",
