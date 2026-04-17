@@ -468,7 +468,10 @@ async def link_evidence(
         session.add(link)
         try:
             await session.commit()
-        except Exception as e:
+        except IntegrityError as e:
+            # Only unique-constraint violations map to 409 "duplicate link".
+            # FK violations, invalid enum values, etc. stay as 500s — they
+            # indicate bad input, not a duplicate.
             await session.rollback()
             raise HTTPException(409, f"Duplicate evidence link: {e.__class__.__name__}") from e
         await session.refresh(link)
@@ -572,12 +575,19 @@ async def get_readiness(
         items = list(cl_result.scalars().all())
     return ReadinessResponse(
         decision_id=decision_id,
-        bjr_readiness_score=float(d.bjr_readiness_score) if d.bjr_readiness_score else None,
+        # Use `is not None` — a valid 0.0 score must NOT be reported as null.
+        bjr_readiness_score=(
+            float(d.bjr_readiness_score) if d.bjr_readiness_score is not None else None
+        ),
         corporate_compliance_score=(
-            float(d.corporate_compliance_score) if d.corporate_compliance_score else None
+            float(d.corporate_compliance_score)
+            if d.corporate_compliance_score is not None
+            else None
         ),
         regional_compliance_score=(
-            float(d.regional_compliance_score) if d.regional_compliance_score else None
+            float(d.regional_compliance_score)
+            if d.regional_compliance_score is not None
+            else None
         ),
         checklist=[_checklist_to_response(c) for c in items],
     )
@@ -597,6 +607,29 @@ gate5_router = APIRouter(
 _GATE5_VALID_HALF_DECISIONS = frozenset(
     {Gate5FinalDecision.APPROVED.value, Gate5FinalDecision.REJECTED.value}
 )
+
+
+async def _assert_decision_in_gate5(session, decision_id: str) -> StrategicDecision:
+    """Load the decision and reject if it is not in `bjr_gate_5` state.
+
+    Gate 5 half-approvals must only be recorded against a decision in the
+    `bjr_gate_5` state. Calling against a decision in any other state would
+    stash half-approvals that could never finalize (the lock transition is
+    only valid from bjr_gate_5). Reject early with a client-friendly error.
+    """
+    result = await session.execute(
+        select(StrategicDecision).where(StrategicDecision.id == decision_id)
+    )
+    decision = result.scalar_one_or_none()
+    if decision is None:
+        raise HTTPException(404, "Decision not found")
+    if decision.status != DecisionStatus.BJR_GATE_5.value:
+        raise HTTPException(
+            409,
+            f"Decision is in state '{decision.status}'; Gate 5 half-approvals "
+            f"require '{DecisionStatus.BJR_GATE_5.value}'.",
+        )
+    return decision
 
 
 async def _ensure_gate5_row(session, decision_id: str) -> BJRGate5Decision:
@@ -625,14 +658,20 @@ async def _ensure_gate5_row(session, decision_id: str) -> BJRGate5Decision:
     try:
         await session.flush()
     except IntegrityError:
-        # Another request just created it — fetch and return that row.
+        # Two causes possible: (a) unique-constraint race — another request
+        # just created it; fetch and return. (b) FK violation — decision_id
+        # doesn't exist. Differentiate by re-fetching; None means the FK
+        # was invalid, so we surface a 404 instead of a 500.
         await session.rollback()
         result = await session.execute(
             select(BJRGate5Decision)
             .where(BJRGate5Decision.decision_id == decision_id)
             .with_for_update()
         )
-        return result.scalar_one()
+        existing = result.scalar_one_or_none()
+        if existing is None:
+            raise HTTPException(404, "Decision not found") from None
+        return existing
     return row
 
 
@@ -650,21 +689,31 @@ async def _maybe_finalize_gate5(session, gate5: BJRGate5Decision, decision_id: s
     approved = Gate5FinalDecision.APPROVED.value
     both_approved = gate5.komisaris_decision == approved and gate5.legal_decision == approved
     if both_approved:
-        gate5.final_decision = approved
-        gate5.locked_at = datetime.now(UTC)
-        # Lock the decision via the state machine (rejects if not in bjr_gate_5).
+        # Attempt the state-machine transition FIRST. Only if it succeeds do we
+        # set final_decision=approved. Prevents inconsistent state where Gate 5
+        # looks approved but the decision wasn't locked (e.g., decision in a
+        # non-gate_5 state — though _assert_decision_in_gate5 should prevent
+        # this earlier, we defend at finalization too).
         locked = await transition_decision_status(
             session, decision_id, DecisionStatus.BJR_LOCKED.value
         )
-        if locked:
-            d_result = await session.execute(
-                select(StrategicDecision).where(StrategicDecision.id == decision_id)
+        if not locked:
+            raise HTTPException(
+                409,
+                "Decision state no longer allows locking. "
+                "Gate 5 halves recorded; re-transition to 'bjr_gate_5' and retry.",
             )
-            decision = d_result.scalar_one()
-            decision.is_bjr_locked = True
-            decision.locked_at = gate5.locked_at
-            decision.locked_by_komisaris_id = gate5.approver_komisaris_id
-            decision.locked_by_legal_id = gate5.approver_legal_id
+        d_result = await session.execute(
+            select(StrategicDecision).where(StrategicDecision.id == decision_id)
+        )
+        decision = d_result.scalar_one()
+        now = datetime.now(UTC)
+        gate5.final_decision = approved
+        gate5.locked_at = now
+        decision.is_bjr_locked = True
+        decision.locked_at = now
+        decision.locked_by_komisaris_id = gate5.approver_komisaris_id
+        decision.locked_by_legal_id = gate5.approver_legal_id
     else:
         gate5.final_decision = Gate5FinalDecision.REJECTED.value
 
@@ -693,6 +742,7 @@ async def gate5_komisaris(
     if payload.decision not in _GATE5_VALID_HALF_DECISIONS:
         raise HTTPException(422, "decision must be 'approved' or 'rejected'")
     async with get_session() as session:
+        await _assert_decision_in_gate5(session, decision_id)
         gate5 = await _ensure_gate5_row(session, decision_id)
         if gate5.final_decision != Gate5FinalDecision.PENDING.value:
             raise HTTPException(409, "Gate 5 already finalized")
@@ -717,6 +767,7 @@ async def gate5_legal(
     if payload.decision not in _GATE5_VALID_HALF_DECISIONS:
         raise HTTPException(422, "decision must be 'approved' or 'rejected'")
     async with get_session() as session:
+        await _assert_decision_in_gate5(session, decision_id)
         gate5 = await _ensure_gate5_row(session, decision_id)
         if gate5.final_decision != Gate5FinalDecision.PENDING.value:
             raise HTTPException(409, "Gate 5 already finalized")

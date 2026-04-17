@@ -32,6 +32,7 @@ from ancol_common.db.models import (
     MaterialDisclosure,
     OrganApproval,
     RelatedPartyEntity,
+    RJPPTheme,
     RKABLineItem,
     SPIReport,
     StrategicDecision,
@@ -189,7 +190,11 @@ async def eval_pd_03_rkab(ctx: EvaluationContext) -> EvaluatorResult:
 
 
 async def eval_pd_04_rjpp(ctx: EvaluationContext) -> EvaluatorResult:
-    """PD-04-RJPP: Activity is aligned to an active RJPP theme."""
+    """PD-04-RJPP: Activity is aligned to an active RJPP theme.
+
+    A superseded / inactive RJPP theme does not count — compliance would be
+    overstated if we accepted any linked theme regardless of is_active.
+    """
     if ctx.decision.rjpp_theme_id is None:
         return EvaluatorResult(
             item_code=BJRItemCode.PD_04_RJPP.value,
@@ -198,11 +203,35 @@ async def eval_pd_04_rjpp(ctx: EvaluationContext) -> EvaluatorResult:
             regulation_basis=["PERGUB-DKI-10-2012"],
             remediation_note="Link decision to an RJPP theme.",
         )
+    result = await ctx.session.execute(
+        select(RJPPTheme).where(RJPPTheme.id == ctx.decision.rjpp_theme_id)
+    )
+    theme = result.scalar_one_or_none()
+    if theme is None:
+        return EvaluatorResult(
+            item_code=BJRItemCode.PD_04_RJPP.value,
+            phase=ChecklistPhase.PRE_DECISION.value,
+            status=ChecklistItemStatus.FLAGGED.value,
+            regulation_basis=["PERGUB-DKI-10-2012"],
+            remediation_note="rjpp_theme_id references missing row - data integrity issue.",
+        )
+    if not theme.is_active:
+        return EvaluatorResult(
+            item_code=BJRItemCode.PD_04_RJPP.value,
+            phase=ChecklistPhase.PRE_DECISION.value,
+            status=ChecklistItemStatus.FLAGGED.value,
+            evidence_refs=[{"type": "rjpp_theme", "id": str(theme.id)}],
+            regulation_basis=["PERGUB-DKI-10-2012"],
+            remediation_note=(
+                f"RJPP theme '{theme.theme_name}' is inactive/superseded. "
+                "Link decision to an active RJPP theme."
+            ),
+        )
     return EvaluatorResult(
         item_code=BJRItemCode.PD_04_RJPP.value,
         phase=ChecklistPhase.PRE_DECISION.value,
         status=ChecklistItemStatus.SATISFIED.value,
-        evidence_refs=[{"type": "rjpp_theme", "id": str(ctx.decision.rjpp_theme_id)}],
+        evidence_refs=[{"type": "rjpp_theme", "id": str(theme.id)}],
         regulation_basis=["PERGUB-DKI-10-2012"],
     )
 
