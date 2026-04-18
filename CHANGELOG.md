@@ -2,6 +2,96 @@
 
 All notable changes to the Ancol MoM Compliance System will be documented in this file.
 
+## [0.4.2.0] - 2026-04-18
+
+### Added — Phase 6.4a complete: BJR chat-first interface end-to-end
+
+Closes out Phase 6.4a. The Gemini Enterprise chat interface is now the primary
+BJR surface — a user asking "Bagaimana readiness akuisisi X?" routes through
+webhook → chat-side RBAC → dispatcher → tool handler → API Gateway → Neo4j
+graph → dual-regime scorecard. No web UI required for BJR read operations.
+
+**Tasks landed across 4 PRs (#8, #9, #10, #11):**
+
+- **Task 1** — `rag/` relocated to `packages/ancol-common/` for shared access from API Gateway
+- **Task 2** — 7 BJR graph data models (`DecisionNode`, `EvidenceNode`, `ChecklistItemNode`, `DocumentIndicator`, `EvidenceSummary`, `Gate5Half`, `ApprovedByEdge`)
+- **Task 3** — `GraphClient` ABC extended with 6 BJR methods (upsert decision/evidence/satisfies/approved + read indicators/evidence)
+- **Task 4** — Full `Neo4jGraphClient` Cypher implementation with idempotent MERGE + graceful degradation
+- **Task 6** — `GET /api/documents/{id}/bjr-indicators` endpoint + new `bjr:read` permission (8 roles) + module-level graph client factory
+- **Task 7** — `bjr_decisions.py` chat tool handlers: `get_decision`, `list_decisions`, `list_my_decisions` + 7 api_client methods batched for Tasks 7-10
+- **Task 8** — `bjr_readiness.py` chat tool handlers: `get_readiness` (dual-regime card), `get_checklist` (16-item per-phase grouping with CRITICAL highlighting)
+- **Task 9** — `bjr_evidence.py` chat tool handlers: `show_document_indicators` (proactive, silent-when-empty per spec §5.2), `show_decision_evidence` (by evidence-type)
+- **Task 10** — `bjr_passport.py` chat tool: `get_passport_url` with graceful 409 handling (decision not locked → "Gate 5 belum selesai" surfaced)
+- **Task 11** — Dispatcher + RBAC wiring in `main.py`: 8 new tool routes + `_ROLE_ALLOWED_TOOLS` frozen matrix + `_role_allowed_tools(role)` helper + 2 new roles (`direksi`, `dewan_pengawas`). Inline fix: `_get_api_client` no longer passes invalid `environment=` kwarg to `ApiClient.__init__`.
+- **Task 12** — `scripts/bjr_graph_backfill.py` idempotent PG→Neo4j backfill: reads `strategic_decisions` + `decision_evidence` + `bjr_checklists.evidence_refs` JSONB via ORM `select()`, upserts via existing GraphClient MERGE methods. Defensive handling for malformed refs and stale item_codes. Supports `--dry-run`.
+- **Task 13** — Agent Builder region-verification runbook (blocker gate for 6.4b, pending GCP support ticket).
+
+**Moderate PII scrubbing (spec §6.4)** in `formatting_bjr._format_idr`:
+- `≥1T` → "Rp X,Y triliun"
+- `≥1B` → "Rp X,Y miliar"
+- `≥1M` → "Rp X juta"
+
+**Per-role BJR tool matrix (spec §4.2):**
+
+| Role | BJR tools | Note |
+|---|---|---|
+| `admin` | 8 (all) | |
+| `corp_secretary` | 8 | BJR process owner |
+| `legal_compliance` | 8 | |
+| `internal_auditor` | 8 | audit needs full read |
+| `business_dev` | 7 | no `get_passport_url` |
+| `komisaris` | 7 | no `list_my_decisions` (not owners) |
+| `dewan_pengawas` | 7 | same as komisaris |
+| `direksi` | 6 | owners: `list_my_decisions` + core + passport |
+| `contract_manager` | 0 | unchanged; BJR out of scope |
+
+**Scripts/ becomes a Python package.** Added `scripts/__init__.py` +
+`scripts/tests/__init__.py` + extended `pyproject.toml` `testpaths` to
+include `scripts` so backfill tests run in CI. Existing scripts unaffected
+(don't match pytest's `test_*.py` pattern).
+
+### Fixed
+
+- Latent `environment=` kwarg bug in `gemini_agent._get_api_client()` — would have crashed the first real webhook call in production because `ApiClient.__init__` only takes `base_url` + `timeout`. Caught during Task 11 refactor. (Task 11)
+- `formatting_bjr._format_idr` and `format_readiness_card` now guard against `None` score values instead of crashing on `.1f` formatting. (Task 8)
+- `format_decision_evidence` annotation simplified from `list[dict[str, Any]]` to `list[dict]` to avoid needing `typing.Any` import. (Task 9)
+
+### Tests
+
+- **+77 tests across Phase 6.4a** (from 543 to 620 total):
+  - Task 6 api-gateway: +5 (endpoint happy path, RBAC denial, auth, 404, graph backend none)
+  - Task 7 gemini-agent: +6 (decision handlers)
+  - Task 8 gemini-agent: +5 (readiness handlers)
+  - Task 9 gemini-agent: +6 (evidence handlers, silent-when-empty contract)
+  - Task 10 gemini-agent: +4 (passport handler, 409 surface)
+  - Task 11 gemini-agent: +23 (dispatcher routing + parametrized per-role RBAC + drift guards)
+  - Task 12 scripts: +6 (column mapping, idempotency, JSONB refs, malformed skip, stale item_code skip, end-to-end)
+
+- **Full regression green** across all 9 services + `ancol-common` + `scripts`: **620 passing**.
+
+### Retrospective — what worked, what didn't
+
+**Worked:**
+
+- **TDD rhythm** scaled linearly across 7 tasks. Every feature shipped red → green → lint → commit with zero rework.
+- **Plan batching on api_client** (Task 7 added 7 methods instead of 1, saving 3 future diffs).
+- **Silent-when-empty contract** on `show_document_indicators` (spec §5.2) fell out of 3 distinct silent paths in the handler — explicit rather than accidental.
+- **`/pre-ship` pipeline on PR #8** caught 11 real bugs (Evidence MERGE compound-key bug, APPROVED_BY re-key, test driver leak, etc.) before any reviewer saw the code.
+
+**Didn't work:**
+
+- **Plan-spec drift.** The 2026-04-17 plan document had **11 material drifts** against the real schema for Task 12 alone (wrong column names, wrong table name, wrong JSONB shape, wrong ORM class names). Caught only because the user explicitly demanded two rounds of verification. Lesson: **plan docs age against a moving schema; always verify against real code before execution.** Consider adding a "plan verification pass" step to the workflow — specifically: grep the exact identifiers the plan references, and stop if any are missing or renamed.
+
+- **Carried concerns that didn't get addressed.** IDOR on `/api/documents/{id}/bjr-indicators`, graph factory duplication (now 4 callers), `decision_evidence` table has zero writers. These need their own PRs — deferring into "carried concerns" across multiple PRs risks becoming technical debt.
+
+### Still pending for Phase 6.4a completeness
+
+- **Deployment-time:** register 8 tools in Vertex AI Agent Builder console (one-time setup).
+- **Deployment-time:** execute `docs/RUNBOOK-agent-builder-region-verification.md` via GCP support ticket (Task 13 blocker gate for any future 6.4b chat mutations).
+- **Out-of-phase:** IDOR sign-off from `corp_secretary` on `/bjr-indicators` endpoint.
+- **Out-of-phase:** `decision_evidence` table writers (Phase 6.5 historical migration).
+- **Deferred:** Task 5 Spanner parity (de-risked; only needed if Spanner becomes primary).
+
 ## [0.4.1.0] - 2026-04-18
 
 ### Added — Phase 6.4a first-wave: BJR chat-read surface + graph data layer (partial)
