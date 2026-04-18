@@ -2,10 +2,10 @@
 
 ## Current State (as of 2026-04-18)
 
-**v0.4.1.0 IN PR #8 — Phase 6.4a partial (6 of 14 tasks).** 14 commits ahead of main on `feat/bjr-gemini-primary-phase-6-4a`. All 4 CI checks pass (lint-python, lint-web, test-python, terraform-validate), mergeable. **431 tests passing** (+54 over v0.4.0.0): 19 `ancol-common` + 351 `api-gateway` + 61 `gemini-agent`. First API surface backing the Gemini Enterprise chat-first BJR interface shipped: `GET /api/documents/{id}/bjr-indicators` + new `bjr:read` permission + 6 BJR graph methods on the Neo4j backend. Full /pre-ship pipeline (/simplify + /review + /codex 2×) caught + fixed 11 real bugs across this partial phase (Evidence MERGE compound-key bug, APPROVED_BY re-key, graph-client init failure guard, WITH DISTINCT on edge cleanup, test driver leak, etc.). **v0.4.0.0 remains live on main** — 543 tests, 33 ORM tables, 88 API routes. MoM + CLM + MFA + WhatsApp + Neo4j + BJR.
+**v0.4.1.0 MERGED to main — Phase 6.4a first wave (6 of 14 tasks) shipped via PR #8.** Squash commit `5345b58` on 2026-04-18. **431 tests passing** (+54 over v0.4.0.0): 19 `ancol-common` + 351 `api-gateway` + 61 `gemini-agent`. First API surface backing the Gemini Enterprise chat-first BJR interface landed: `GET /api/documents/{id}/bjr-indicators` + new `bjr:read` permission + 6 BJR graph methods on the Neo4j backend. Full /pre-ship pipeline (/simplify + /review + /codex 2×) caught + fixed 11 real bugs before merge (Evidence MERGE compound-key bug, APPROVED_BY re-key, graph-client init failure guard, WITH DISTINCT on edge cleanup, test driver leak, etc.). Active work now on `feat/bjr-gemini-primary-phase-6-4a-task7` for Task 7 (read-only chat tool handlers). MoM + CLM + MFA + WhatsApp + Neo4j + BJR.
 
 **Repository:** https://github.com/erikgunawans/New-Ancol-Platform
-**Active PR:** [#8 — Phase 6.4a partial](https://github.com/erikgunawans/New-Ancol-Platform/pull/8)
+**Latest merge:** [PR #8 — Phase 6.4a first wave](https://github.com/erikgunawans/New-Ancol-Platform/pull/8) (merged 2026-04-18)
 
 | Phase | Weeks | Status | Files | Tests |
 |-------|-------|--------|-------|-------|
@@ -25,8 +25,9 @@
 | **Code Review + Security** | — | **COMPLETE** | 6 security fixes | 0 new |
 | **BJR Phase 6.1-6.3 (v0.4.0.0)** | — | **COMPLETE** | +32 new, +19 mod | +127 |
 | **BJR Evaluator Tests (PR #7)** | — | **COMPLETE** | +3 test files | +39 |
-| **Phase 6.4a — Tasks 1-4, 6, 13 (v0.4.1.0, PR #8)** | — | **IN REVIEW** | +21 new, +9 mod | +54 |
-| **Phase 6.4a — Tasks 5, 7-12, 14** | — | **PENDING** | (next branch) | +~48 expected |
+| **Phase 6.4a — Tasks 1-4, 6, 13 (v0.4.1.0, PR #8)** | — | **COMPLETE** | +21 new, +9 mod | +54 |
+| **Phase 6.4a — Task 7 (bjr_decisions chat tools)** | — | **IN PROGRESS** | (current branch) | +6 expected |
+| **Phase 6.4a — Tasks 5, 8-12, 14** | — | **PENDING** | (following branches) | +~42 expected |
 
 **Phase 6.4a first-wave shipped in PR #8 (6 of 14 tasks):**
 - **Task 1** `05eef81` — rag/ relocated to `packages/ancol-common/` (shared access from api-gateway)
