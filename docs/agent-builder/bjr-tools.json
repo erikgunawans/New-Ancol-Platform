@@ -1,0 +1,126 @@
+{
+  "tools": [
+    {
+      "function_declarations": [
+        {
+          "name": "get_decision",
+          "description": "Fetch the full detail of a specific BJR (Business Judgment Rule) strategic decision by its ID. Returns title, status, readiness score (dual-regime: corporate + regional), initiative type, estimated value, and locked state. Use this when the user asks about a specific decision by name or ID. Output is chat-formatted with moderate PII scrubbing (IDR values rounded to miliar/triliun).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "decision_id": {
+                "type": "string",
+                "description": "UUID of the strategic decision. Required."
+              }
+            },
+            "required": ["decision_id"]
+          }
+        },
+        {
+          "name": "list_decisions",
+          "description": "List BJR strategic decisions with optional filters. Use this when the user asks about multiple decisions, wants an overview, or asks 'what decisions are in review?'. Returns a compact list with IDs, titles, readiness scores, and statuses.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "description": "Optional status filter. Valid values: ideation, dd_in_progress, fs_in_progress, rkab_verified, board_proposed, organ_approval_pending, approved, executing, monitoring, bjr_gate_5, bjr_locked, archived, rejected, cancelled."
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Max number of decisions to return. Defaults to 20."
+              }
+            }
+          }
+        },
+        {
+          "name": "list_my_decisions",
+          "description": "List BJR decisions owned by the current user. Use this when the user says 'my decisions', 'what am I working on', or similar first-person phrasing. Owner is inferred from the caller's IAP identity.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "description": "Max number of decisions to return. Defaults to 20."
+              }
+            }
+          }
+        },
+        {
+          "name": "get_readiness",
+          "description": "Show the dual-regime BJR readiness scorecard for a decision. Returns corporate compliance score (UU PT + OJK), regional compliance score (PP + Pergub DKI for BUMD), the min() which is the effective readiness, whether Gate 5 is unlockable, and any CRITICAL items flagged. Use this when the user asks 'is decision X ready?', 'what's the score?', or 'can we lock this?'.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "decision_id": {
+                "type": "string",
+                "description": "UUID of the decision. Required."
+              }
+            },
+            "required": ["decision_id"]
+          }
+        },
+        {
+          "name": "get_checklist",
+          "description": "Show the 16-item BJR proof checklist for a decision, grouped by phase (pre-decision / decision / post-decision). Each item shows its status (satisfied/flagged/in_progress/not_started). CRITICAL items are highlighted (PD-03-RKAB, PD-05-COI, D-06-QUORUM, D-11-DISCLOSE). Use this when the user asks 'what's missing?', 'what still needs to be done?', or 'show me the checklist'.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "decision_id": {
+                "type": "string",
+                "description": "UUID of the decision. Required."
+              }
+            },
+            "required": ["decision_id"]
+          }
+        },
+        {
+          "name": "show_document_indicators",
+          "description": "PROACTIVE TOOL — call this whenever a specific document (MoM, contract, DD report, FS report, etc.) is mentioned by ID or by filename, to show which BJR decisions the document supports. Silent when the document has no BJR context (returns empty, chat continues as if tool wasn't called). Never ask the user whether to call this — just call it on every document reference. Part of spec § 5.2 proactive surfacing pattern.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "doc_id": {
+                "type": "string",
+                "description": "UUID of the document. Required."
+              },
+              "doc_type": {
+                "type": "string",
+                "description": "Optional document type hint (mom, contract, dd_report, fs_report, etc.). Not required for the lookup but helps with logging."
+              }
+            },
+            "required": ["doc_id"]
+          }
+        },
+        {
+          "name": "show_decision_evidence",
+          "description": "List all evidence (documents) attached to a specific decision, grouped by evidence type. Use this when the user asks 'what evidence supports decision X?' or 'show me the docs for decision Y'.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "decision_id": {
+                "type": "string",
+                "description": "UUID of the decision. Required."
+              }
+            },
+            "required": ["decision_id"]
+          }
+        },
+        {
+          "name": "get_passport_url",
+          "description": "Fetch a signed GCS URL to download the Decision Passport PDF for a locked BJR decision. The URL expires in ~1 hour. Only works for decisions that have completed Gate 5 dual-approval (status=bjr_locked). Returns a user-friendly Indonesian error if the decision is not yet locked. Use this when direksi/legal/komisaris ask to download the Passport.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "decision_id": {
+                "type": "string",
+                "description": "UUID of the decision. Required."
+              }
+            },
+            "required": ["decision_id"]
+          }
+        }
+      ]
+    }
+  ]
+}
