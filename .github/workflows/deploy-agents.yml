@@ -7,11 +7,25 @@ on:
       - "services/**"
       - "packages/**"
       - "web/**"
+      - ".github/workflows/deploy-agents.yml"
+      - "cloudbuild.yaml"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to deploy (blank = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write  # Required for Workload Identity Federation
 
 env:
   PROJECT_ID: ancol-mom-compliance-dev
   REGION: asia-southeast2
   REGISTRY: asia-southeast2-docker.pkg.dev
+  WIF_PROVIDER: projects/324575549850/locations/global/workloadIdentityPools/github-actions/providers/github
+  DEPLOY_SA: github-actions-deploy@ancol-mom-compliance-dev.iam.gserviceaccount.com
 
 jobs:
   detect-changes:
@@ -23,10 +37,33 @@ jobs:
         with:
           fetch-depth: 2
       - id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SERVICE: ${{ github.event.inputs.service }}
         run: |
+          # Allowlist of service names (prevents injection via workflow_dispatch input)
+          ALL_SERVICES='["api-gateway","gemini-agent","extraction-agent","legal-research-agent","comparison-agent","reporting-agent","document-processor","batch-engine","email-ingest","regulation-monitor"]'
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -z "$INPUT_SERVICE" ]; then
+              echo "services=$ALL_SERVICES" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # Validate INPUT_SERVICE against allowlist
+            if echo "$ALL_SERVICES" | jq -e --arg svc "$INPUT_SERVICE" 'index($svc)' > /dev/null; then
+              echo "services=[\"$INPUT_SERVICE\"]" >> "$GITHUB_OUTPUT"
+              exit 0
+            else
+              echo "Invalid service: $INPUT_SERVICE"
+              echo "Must be one of: $ALL_SERVICES"
+              exit 1
+            fi
+          fi
+
           CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^services/' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n")[:-1]')
-          if git diff --name-only HEAD~1 HEAD | grep -q '^packages/'; then
-            CHANGED='["api-gateway","extraction-agent","legal-research-agent","comparison-agent","reporting-agent","document-processor","batch-engine","email-ingest","regulation-monitor"]'
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^(packages/|\.github/workflows/deploy-agents\.yml|cloudbuild\.yaml)'; then
+            # Shared change — redeploy all 10 services including gemini-agent
+            CHANGED="$ALL_SERVICES"
           fi
           echo "services=$CHANGED" >> "$GITHUB_OUTPUT"
 
@@ -44,40 +81,46 @@ jobs:
 
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Build and push image
+      - name: Build and push image (repo-root context via cloudbuild.yaml)
         env:
           COMMIT_SHA: ${{ github.sha }}
         run: |
           gcloud builds submit \
-            --tag "$REGISTRY/$PROJECT_ID/ancol/$SERVICE_NAME:$COMMIT_SHA" \
-            "services/$SERVICE_NAME"
+            --config=cloudbuild.yaml \
+            --substitutions="_TAG=${REGISTRY}/${PROJECT_ID}/ancol/${SERVICE_NAME}:${COMMIT_SHA},_SERVICE=${SERVICE_NAME}" \
+            .
 
       - name: Deploy to Cloud Run
         env:
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          gcloud run deploy "ancol-$SERVICE_NAME" \
-            --image "$REGISTRY/$PROJECT_ID/ancol/$SERVICE_NAME:$COMMIT_SHA" \
-            --region "$REGION" \
+          gcloud run deploy "ancol-${SERVICE_NAME}" \
+            --image "${REGISTRY}/${PROJECT_ID}/ancol/${SERVICE_NAME}:${COMMIT_SHA}" \
+            --region "${REGION}" \
             --service-account "ancol-${SERVICE_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" \
             --quiet
 
   deploy-web:
     runs-on: ubuntu-latest
+    needs: detect-changes
     if: >
-      github.event_name == 'push' &&
-      contains(toJson(github.event.commits.*.modified), 'web/') ||
-      contains(toJson(github.event.commits.*.added), 'web/')
+      (github.event_name == 'push' &&
+       (contains(toJson(github.event.commits.*.modified), 'web/') ||
+        contains(toJson(github.event.commits.*.added), 'web/'))) ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.service == 'web-frontend' || github.event.inputs.service == ''))
     steps:
       - uses: actions/checkout@v4
 
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
 
       - uses: google-github-actions/setup-gcloud@v2
 
@@ -86,16 +129,16 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
         run: |
           gcloud builds submit \
-            --tag "$REGISTRY/$PROJECT_ID/ancol/web-frontend:$COMMIT_SHA" \
-            "web"
+            --tag "${REGISTRY}/${PROJECT_ID}/ancol/web-frontend:${COMMIT_SHA}" \
+            web
 
       - name: Deploy web frontend to Cloud Run
         env:
           COMMIT_SHA: ${{ github.sha }}
         run: |
           gcloud run deploy "ancol-web-frontend" \
-            --image "$REGISTRY/$PROJECT_ID/ancol/web-frontend:$COMMIT_SHA" \
-            --region "$REGION" \
+            --image "${REGISTRY}/${PROJECT_ID}/ancol/web-frontend:${COMMIT_SHA}" \
+            --region "${REGION}" \
             --port 3000 \
             --service-account "ancol-web-frontend@${PROJECT_ID}.iam.gserviceaccount.com" \
             --allow-unauthenticated \

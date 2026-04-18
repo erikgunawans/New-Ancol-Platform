@@ -1,0 +1,29 @@
+# Generic cloudbuild for per-service images.
+#
+# Invoked from .github/workflows/deploy-agents.yml as:
+#   gcloud builds submit \
+#     --config=cloudbuild.yaml \
+#     --substitutions=_TAG=<registry/image:tag>,_SERVICE=<service-name> \
+#     .
+#
+# Build context is the repo root (`.`), so Dockerfile COPY commands like
+# `COPY packages/ancol-common /tmp/ancol-common` resolve correctly.
+# The Dockerfile path is passed via the `-f` flag.
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--tag=${_TAG}'
+      - '-f'
+      - 'services/${_SERVICE}/Dockerfile'
+      - '.'
+
+images:
+  - '${_TAG}'
+
+options:
+  # Speed up builds: skip source archive upload when possible
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1200s'  # 20 min — some services install large deps
