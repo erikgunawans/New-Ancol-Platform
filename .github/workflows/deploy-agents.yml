@@ -72,6 +72,10 @@ jobs:
     if: needs.detect-changes.outputs.services != '[]'
     runs-on: ubuntu-latest
     strategy:
+      # Don't cancel other service deploys when one fails — each service is
+      # independent and we want to see which ones actually build+deploy
+      # vs which ones break at startup (HealthCheckContainerError etc.).
+      fail-fast: false
       matrix:
         service: ${{ fromJson(needs.detect-changes.outputs.services) }}
     env:
