@@ -22,8 +22,8 @@ steps:
 images:
   - '${_TAG}'
 
-options:
-  # Speed up builds: skip source archive upload when possible
-  logging: CLOUD_LOGGING_ONLY
+# Default logging (hybrid: Cloud Storage + Cloud Logging) — does NOT require
+# the Cloud Build compute SA to have Logs Writer permission. CLOUD_LOGGING_ONLY
+# causes build step 0 to fail with exit 100 when Logs Writer is missing.
 
 timeout: '1200s'  # 20 min — some services install large deps
